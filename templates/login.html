@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meu Dia — Phocus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&display=swap">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&display=swap"></noscript>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Montserrat',sans-serif;background:#191818;min-height:100vh;
+     display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.deco{position:fixed;pointer-events:none;border-radius:50%;border:1px solid rgba(249,249,249,.06)}
+.deco-1{width:520px;height:520px;bottom:-200px;right:-160px}
+.deco-2{width:260px;height:260px;top:-90px;left:-90px}
+.brand{display:flex;flex-direction:column;align-items:center;margin-bottom:32px}
+.card{width:100%;max-width:400px;background:#242323;border-radius:16px;padding:36px 32px;
+      border:1px solid rgba(249,249,249,.07);box-shadow:0 8px 40px rgba(0,0,0,.4)}
+.card-title{font-size:16px;font-weight:700;color:#F9F9F9;margin-bottom:4px}
+.card-sub{font-size:13px;color:rgba(249,249,249,.35);margin-bottom:28px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:11px;font-weight:600;color:rgba(249,249,249,.4);
+             letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.field input{width:100%;padding:12px 14px;background:#191818;
+             border:1px solid rgba(249,249,249,.1);border-radius:8px;
+             font-family:'Montserrat',sans-serif;font-size:14px;color:#F9F9F9;outline:none;transition:.2s}
+.field input:focus{border-color:#B0A2F9;box-shadow:0 0 0 3px rgba(176,162,249,.1)}
+.field input::placeholder{color:rgba(249,249,249,.2)}
+.btn{width:100%;padding:13px;background:#B0A2F9;color:#191818;
+     font-family:'Montserrat',sans-serif;font-size:14px;font-weight:700;
+     border:none;border-radius:8px;cursor:pointer;margin-top:8px;transition:.2s}
+.btn:hover{opacity:.88}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.erro{background:rgba(238,125,0,.1);border:1px solid rgba(238,125,0,.3);
+      border-radius:8px;padding:10px 14px;font-size:13px;color:#EE7D00;
+      margin-bottom:16px;line-height:1.4}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(25,24,24,.3);
+      border-top-color:#191818;border-radius:50%;animation:spin .7s linear infinite;
+      vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="deco deco-1"></div>
+<div class="deco deco-2"></div>
+
+<div class="brand">
+  <svg viewBox="0 0 380 100" width="160" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="28" cy="30" r="22" fill="#F9F9F9"/>
+    <rect x="16" y="42" width="14" height="52" rx="7" fill="#F9F9F9"/>
+    <text x="56" y="83" font-family="'Montserrat','Arial Rounded MT Bold',sans-serif"
+          font-weight="900" font-size="62" fill="#F9F9F9" letter-spacing="-1">hocus</text>
+  </svg>
+  <div style="font-size:11px;color:rgba(249,249,249,.3);margin-top:8px;letter-spacing:.1em;text-transform:uppercase">Meu Dia</div>
+</div>
+
+<div class="card">
+  <div class="card-title">Bom dia ☀️</div>
+  <div class="card-sub">Entre com seu e-mail corporativo para ver a triagem do dia.</div>
+  {% if erro %}
+  <div class="erro">{{ erro }}</div>
+  {% endif %}
+  <form method="POST" id="form">
+    <div class="field">
+      <label>E-mail</label>
+      <input type="email" name="email" placeholder="nome@phocuspropaganda.com.br"
+             autocomplete="email" required autofocus>
+    </div>
+    <div class="field">
+      <label>Senha do webmail</label>
+      <input type="password" name="senha" placeholder="••••••••"
+             autocomplete="current-password" required>
+    </div>
+    <button type="submit" class="btn" id="btn">Ver meu dia →</button>
+  </form>
+</div>
+
+<script>
+document.getElementById('form').addEventListener('submit', function() {
+  const btn = document.getElementById('btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Lendo e-mails...';
+});
+</script>
+</body>
+</html>
