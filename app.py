@@ -8,13 +8,76 @@ import email
 import json
 import os
 import re
+import sqlite3
 from email.header import decode_header
 from datetime import datetime, timedelta
+from pathlib import Path
 from flask import Flask, render_template, request, session, redirect, jsonify
 from functools import wraps
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'phocus-meudia-2026-secret')
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+
+@app.after_request
+def no_cache(r):
+    r.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    r.headers['Pragma'] = 'no-cache'
+    return r
+
+# ── Banco de dados ─────────────────────────────────────────────────────────────
+
+DB_PATH = Path(__file__).parent / 'meudia.db'
+
+def init_db():
+    con = sqlite3.connect(DB_PATH)
+    con.execute('''CREATE TABLE IF NOT EXISTS resolvidos (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario     TEXT NOT NULL,
+        message_id  TEXT NOT NULL,
+        resolvido_em TEXT NOT NULL,
+        UNIQUE(usuario, message_id)
+    )''')
+    con.execute('''CREATE TABLE IF NOT EXISTS sessoes (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario     TEXT NOT NULL UNIQUE,
+        senha       TEXT NOT NULL,
+        empresa     TEXT NOT NULL,
+        token       TEXT NOT NULL UNIQUE,
+        criado_em   TEXT NOT NULL
+    )''')
+    con.commit()
+    con.close()
+
+def gerar_token():
+    import secrets
+    return secrets.token_urlsafe(32)
+
+def salvar_sessao(email_addr, senha, empresa):
+    con = sqlite3.connect(DB_PATH)
+    row = con.execute('SELECT token FROM sessoes WHERE usuario=?', (email_addr,)).fetchone()
+    if row:
+        token = row[0]
+        con.execute('UPDATE sessoes SET senha=?, empresa=? WHERE usuario=?', (senha, empresa, email_addr))
+    else:
+        token = gerar_token()
+        con.execute(
+            'INSERT INTO sessoes (usuario, senha, empresa, token, criado_em) VALUES (?,?,?,?,?)',
+            (email_addr, senha, empresa, token, datetime.now().isoformat())
+        )
+    con.commit()
+    con.close()
+    return token
+
+def get_sessao_por_token(token):
+    con = sqlite3.connect(DB_PATH)
+    row = con.execute(
+        'SELECT usuario, senha, empresa FROM sessoes WHERE token=?', (token,)
+    ).fetchone()
+    con.close()
+    return row  # (usuario, senha, empresa) ou None
+
+init_db()
 
 # ── Configuração IMAP por domínio ──────────────────────────────────────────────
 
@@ -136,6 +199,7 @@ def ler_emails(email_addr, senha, horas=18):
                 data_fmt = data_str[:16]
 
             prioridade = classificar(assunto, remetente, corpo)
+            message_id = msg.get('Message-ID', '').strip()
 
             emails.append({
                 'assunto':    assunto,
@@ -143,6 +207,7 @@ def ler_emails(email_addr, senha, horas=18):
                 'data':       data_fmt,
                 'corpo':      corpo.strip(),
                 'prioridade': prioridade,
+                'message_id': message_id,
             })
 
         mail.logout()
@@ -193,10 +258,12 @@ def login():
             if erros:
                 erro = erros
             else:
+                token = salvar_sessao(email_addr, senha, empresa)
                 session['email']   = email_addr
-                session['senha']   = senha  # criptografado pelo Flask session
+                session['senha']   = senha
                 session['empresa'] = empresa
-                nome = email_addr.split('@')[0].replace('.', ' ').title()
+                session['token']   = token
+                nome = email_addr.split('@')[0].replace('.', ' ').title().split()[0]
                 session['nome']    = nome
                 return redirect('/meu-dia')
 
@@ -222,7 +289,6 @@ def meu_dia():
         'baixa':     sum(1 for e in emails if e['prioridade'] == 'baixa'),
     }
     hoje = datetime.now().strftime('%A, %d de %B de %Y').capitalize()
-    # Tradução simples
     dias  = {'monday':'Segunda','tuesday':'Terça','wednesday':'Quarta',
              'thursday':'Quinta','friday':'Sexta','saturday':'Sábado','sunday':'Domingo'}
     meses = {'january':'janeiro','february':'fevereiro','march':'março',
@@ -232,6 +298,20 @@ def meu_dia():
     for en, pt in {**dias, **meses}.items():
         hoje = hoje.replace(en.capitalize(), pt.capitalize()).replace(en, pt)
 
+    # Garantir que a sessão tem token (retrocompatibilidade)
+    if not session.get('token'):
+        token = salvar_sessao(session['email'], session['senha'], empresa)
+        session['token'] = token
+        session.modified = True
+
+    # Buscar IDs já resolvidos por este usuário
+    con = sqlite3.connect(DB_PATH)
+    rows = con.execute(
+        'SELECT message_id FROM resolvidos WHERE usuario=?', (session['email'],)
+    ).fetchall()
+    con.close()
+    resolvidos = {r[0] for r in rows}
+
     return render_template('meu_dia.html',
         emails=emails,
         contadores=contadores,
@@ -239,7 +319,35 @@ def meu_dia():
         nome=session.get('nome',''),
         empresa=empresa,
         erros=erros,
+        resolvidos=resolvidos,
+        token=session.get('token',''),
     )
+
+
+@app.route('/api/resolver', methods=['POST'])
+@login_required
+def api_resolver():
+    data = request.get_json() or {}
+    message_id = data.get('message_id', '').strip()
+    acao = data.get('acao', 'resolver')  # 'resolver' | 'desmarcar'
+
+    if not message_id:
+        return jsonify({'ok': False, 'erro': 'message_id ausente'})
+
+    con = sqlite3.connect(DB_PATH)
+    if acao == 'resolver':
+        con.execute(
+            'INSERT OR IGNORE INTO resolvidos (usuario, message_id, resolvido_em) VALUES (?,?,?)',
+            (session['email'], message_id, datetime.now().isoformat())
+        )
+    else:
+        con.execute(
+            'DELETE FROM resolvidos WHERE usuario=? AND message_id=?',
+            (session['email'], message_id)
+        )
+    con.commit()
+    con.close()
+    return jsonify({'ok': True})
 
 
 @app.route('/api/atualizar')

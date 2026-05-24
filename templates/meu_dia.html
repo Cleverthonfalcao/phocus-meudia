@@ -10,67 +10,84 @@
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&family=DM+Mono:wght@400&display=swap"></noscript>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Montserrat',sans-serif;background:#F9F9F9;color:#191818;min-height:100vh}
-.page{max-width:700px;margin:0 auto;padding:0 0 4rem}
+body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-height:100vh}
+.page{max-width:700px;margin:0 auto;padding:0 0 5rem}
 
-/* Header */
-.header{padding:1.25rem 1.5rem;display:flex;align-items:center;justify-content:space-between;
+/* ── Header ── */
+.header{padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;
         position:relative;overflow:hidden;
         background:{% if empresa == 'maximize' %}#1A1A2E{% else %}#191818{% endif %}}
 .header::before{content:'';position:absolute;width:220px;height:220px;border-radius:50%;
-                border:1px solid rgba(176,162,249,.12);top:-90px;right:60px;pointer-events:none}
+                border:1px solid rgba(176,162,249,.1);top:-90px;right:60px;pointer-events:none}
 .header::after{content:'';position:absolute;width:110px;height:110px;border-radius:50%;
-               border:1px solid rgba(255,255,255,.05);bottom:-40px;right:20px;pointer-events:none}
+               border:1px solid rgba(255,255,255,.04);bottom:-40px;right:20px;pointer-events:none}
 .header-left{display:flex;align-items:center;gap:12px}
-.greeting{font-size:15px;font-weight:700;color:#F9F9F9}
-.date-lbl{font-size:10px;color:rgba(255,255,255,.35);font-family:'DM Mono',monospace;margin-top:2px}
-.btn-logout{background:none;border:1px solid rgba(249,249,249,.12);border-radius:8px;
-            color:rgba(249,249,249,.4);font-size:11px;font-family:'Montserrat',sans-serif;
-            padding:5px 12px;cursor:pointer;transition:.15s;text-decoration:none;display:flex;align-items:center;gap:5px}
-.btn-logout:hover{border-color:rgba(249,249,249,.3);color:rgba(249,249,249,.7)}
+.header-right{display:flex;align-items:center;gap:12px}
+.header-info{text-align:right}
+.greeting{font-size:14px;font-weight:700;color:#F9F9F9}
+.date-lbl{font-size:10px;color:rgba(255,255,255,.3);font-family:'DM Mono',monospace;margin-top:2px}
+.btn-logout{background:rgba(249,249,249,.08);border:1px solid rgba(249,249,249,.15);
+            border-radius:8px;color:rgba(249,249,249,.6);font-size:11px;
+            font-family:'Montserrat',sans-serif;font-weight:600;
+            padding:6px 14px;cursor:pointer;transition:.15s;text-decoration:none;
+            display:flex;align-items:center;gap:5px;white-space:nowrap}
+.btn-logout:hover{background:rgba(249,249,249,.14);color:#F9F9F9;border-color:rgba(249,249,249,.3)}
+.btn-config{background:none;border:none;color:rgba(249,249,249,.3);font-size:16px;
+            cursor:pointer;padding:4px;line-height:1;transition:.15s}
+.btn-config:hover{color:rgba(249,249,249,.7)}
 
-/* Inner */
+/* ── Inner ── */
 .inner{padding:1.25rem 1.5rem}
 
-/* Contadores */
-.counters{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.75rem}
-.cnt{background:#fff;border:1px solid rgba(25,24,24,.08);border-radius:12px;padding:10px 12px;
-     box-shadow:0 2px 6px rgba(0,0,0,.05)}
-.cnt-n{font-size:24px;font-weight:900}
-.cnt.r .cnt-n{color:#E8302A} .cnt.a .cnt-n{color:#EE7D00}
-.cnt.g .cnt-n{color:#45B577} .cnt.b .cnt-n{color:#CCC}
-.cnt-l{font-size:9px;color:#999;margin-top:2px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
-
-/* Erro */
+/* ── Alerta ── */
 .alert{background:#FFF3E5;border:1px solid rgba(238,125,0,.3);border-radius:10px;
        padding:10px 14px;font-size:12px;color:#B55E00;margin-bottom:1.25rem}
 
-/* Vazio */
-.empty-state{text-align:center;padding:3rem 1rem;color:#CCC}
-.empty-icon{font-size:40px;margin-bottom:.75rem}
-.empty-msg{font-size:14px;font-weight:600}
-.empty-sub{font-size:12px;margin-top:4px;color:#BBB}
+/* ── Refresh bar ── */
+.refresh-bar{display:flex;align-items:center;justify-content:space-between;
+             margin-bottom:1.5rem;gap:10px}
+.btn-refresh{background:#191818;color:#F9F9F9;border:none;border-radius:10px;
+             font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;
+             padding:9px 18px;cursor:pointer;transition:.15s;
+             display:flex;align-items:center;gap:6px;flex-shrink:0}
+.btn-refresh:hover{background:#333}
+.btn-refresh:disabled{opacity:.4;cursor:not-allowed}
+.refresh-meta{font-size:11px;color:#AAA;font-family:'DM Mono',monospace;text-align:right;line-height:1.5}
+.refresh-meta span{display:block}
+.spin{display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,.2);
+      border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
 
-/* Seção */
+/* ── Contadores ── */
+.counters{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.75rem}
+.cnt{background:#fff;border:1px solid rgba(25,24,24,.07);border-radius:14px;padding:12px 14px;
+     box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.cnt-n{font-size:26px;font-weight:900;transition:color .3s}
+.cnt.r .cnt-n{color:#E8302A} .cnt.a .cnt-n{color:#EE7D00}
+.cnt.g .cnt-n{color:#45B577} .cnt.b .cnt-n{color:#CCC}
+.cnt.zero .cnt-n{color:#DDD !important}
+.cnt-l{font-size:9px;color:#BBB;margin-top:3px;font-weight:700;
+        text-transform:uppercase;letter-spacing:.05em}
+
+/* ── Seção ── */
 .sec{margin-bottom:1.75rem}
 .sec-hd{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-.sec-pip{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.sec-pip{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .sec-pip.r{background:#E8302A} .sec-pip.a{background:#EE7D00}
 .sec-pip.g{background:#45B577} .sec-pip.b{background:#CCC}
-.sec-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#888}
+.sec-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#999}
 
-/* Cards de e-mail */
+/* ── Cards ── */
 .ecard{background:#fff;border-radius:14px;margin-bottom:8px;
-       border:1.5px solid rgba(25,24,24,.08);overflow:hidden;
-       box-shadow:0 2px 6px rgba(0,0,0,.05);transition:.2s}
-.ecard:hover{box-shadow:0 4px 16px rgba(0,0,0,.09)}
-.ecard.resolved{opacity:.25;filter:grayscale(.7)}
-.ecard.r{border-left:3.5px solid #E8302A}
-.ecard.a{border-left:3.5px solid #EE7D00}
-.ecard.g{border-left:3.5px solid #45B577}
+       border:1px solid rgba(25,24,24,.07);overflow:hidden;
+       box-shadow:0 1px 4px rgba(0,0,0,.04);transition:.2s}
+.ecard:hover{box-shadow:0 4px 16px rgba(0,0,0,.08);transform:translateY(-1px)}
+.ecard.resolved{opacity:.22;filter:grayscale(.8);transform:none}
+.ecard.r{border-left:3px solid #E8302A}
+.ecard.a{border-left:3px solid #EE7D00}
+.ecard.g{border-left:3px solid #45B577}
 
-.ecard-main{padding:12px 14px;display:flex;align-items:flex-start;gap:11px;cursor:pointer}
-.check-circle{width:28px;height:28px;border-radius:50%;border:2px solid #E0E0E0;flex-shrink:0;
+.ecard-main{padding:13px 14px;display:flex;align-items:flex-start;gap:11px;cursor:pointer}
+.check-circle{width:26px;height:26px;border-radius:50%;border:2px solid #E8E8E8;flex-shrink:0;
               margin-top:2px;display:flex;align-items:center;justify-content:center;cursor:pointer;
               transition:all .3s cubic-bezier(.34,1.56,.64,1)}
 .ecard.resolved .check-circle{background:#45B577;border-color:#45B577;transform:scale(1.1)}
@@ -79,46 +96,62 @@ body{font-family:'Montserrat',sans-serif;background:#F9F9F9;color:#191818;min-he
 .ecard-body{flex:1;min-width:0}
 .ecard-sender{font-size:13px;font-weight:700;color:#191818;
               white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ecard-subj{font-size:12px;margin-top:1px;white-space:nowrap;overflow:hidden;
-            text-overflow:ellipsis;font-weight:600}
+.ecard-subj{font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;
+            text-overflow:ellipsis;font-weight:600;color:#555}
 .ecard.r .ecard-subj{color:#C0271F}
 .ecard.a .ecard-subj{color:#B55E00}
 .ecard.g .ecard-subj{color:#1A7A50}
-.ecard-meta{font-size:10px;font-family:'DM Mono',monospace;margin-top:3px;color:#BBB}
-.ecard-chevron{font-size:16px;flex-shrink:0;transition:transform .2s;margin-top:4px;color:#CCC}
+.ecard-meta{font-size:10px;font-family:'DM Mono',monospace;margin-top:4px;color:#CCC}
+.ecard-chevron{font-size:14px;flex-shrink:0;transition:transform .2s;margin-top:4px;color:#DDD}
 .ecard.open .ecard-chevron{transform:rotate(180deg)}
 
-.ecard-expand{max-height:0;overflow:hidden;transition:max-height .3s ease}
-.ecard.open .ecard-expand{max-height:320px}
-.ecard-expand-inner{margin:0 14px;padding:10px 0 14px;border-top:1px solid #F0F0F0}
-.corpo-txt{font-size:12px;line-height:1.7;padding:10px 12px;border-radius:10px;
-           background:#F9F9F9;color:#555;border:1px solid #EFEFEF;
-           white-space:pre-wrap;word-break:break-word;max-height:120px;overflow-y:auto}
+.ecard-expand{max-height:0;overflow:hidden;transition:max-height .35s ease}
+.ecard.open .ecard-expand{max-height:340px}
+.ecard-expand-inner{margin:0 14px;padding:10px 0 14px;border-top:1px solid #F4F4F4}
+.corpo-txt{font-size:12px;line-height:1.75;padding:10px 12px;border-radius:10px;
+           background:#F9F9F9;color:#666;border:1px solid #EFEFEF;
+           white-space:pre-wrap;word-break:break-word;max-height:130px;overflow-y:auto}
 
 .resolved-strip{display:none;align-items:center;gap:6px;padding:5px 14px;
                 font-size:11px;font-weight:700;background:#45B577;color:#fff}
 .ecard.resolved .resolved-strip{display:flex}
 
-/* Divider */
-.divider{height:1px;background:rgba(25,24,24,.07);margin:.25rem 0 1.75rem}
+/* ── Empty state ── */
+.empty-wrap{padding:2.5rem 1rem 1rem;display:flex;flex-direction:column;align-items:center;gap:.5rem}
+.empty-icon{font-size:36px;line-height:1;filter:grayscale(.3)}
+.empty-msg{font-size:15px;font-weight:700;color:#191818;margin-top:.25rem}
+.empty-sub{font-size:12px;color:#BBB;text-align:center;line-height:1.6;max-width:260px}
+.empty-tag{margin-top:.75rem;background:#EDFAF3;color:#2E8A59;font-size:11px;font-weight:700;
+           padding:4px 12px;border-radius:20px;letter-spacing:.04em}
 
-/* Refresh */
-.refresh-bar{display:flex;align-items:center;justify-content:space-between;
-             margin-bottom:1.25rem;padding:.6rem 1rem;background:#fff;
-             border-radius:10px;border:1px solid rgba(25,24,24,.08)}
-.refresh-info{font-size:11px;color:#AAA;font-family:'DM Mono',monospace}
-.btn-refresh{background:#B0A2F9;color:#191818;border:none;border-radius:8px;
-             font-family:'Montserrat',sans-serif;font-size:11px;font-weight:700;
-             padding:6px 14px;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:5px}
-.btn-refresh:hover{background:#9B8CF5}
-.btn-refresh:disabled{opacity:.5;cursor:not-allowed}
-.spin{display:inline-block;width:10px;height:10px;border:2px solid rgba(25,24,24,.2);
-      border-top-color:#191818;border-radius:50%;animation:spin .7s linear infinite}
+/* ── Painel de configuração ── */
+.config-panel{display:none;margin-bottom:1.25rem;padding:1rem;background:#fff;
+              border-radius:12px;border:1px solid rgba(25,24,24,.07)}
+.config-panel.open{display:block}
+.config-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+              color:#AAA;margin-bottom:10px}
+.token-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.token-val{font-family:'DM Mono',monospace;font-size:11px;color:#555;background:#F5F5F5;
+           padding:6px 10px;border-radius:7px;flex:1;overflow:hidden;
+           text-overflow:ellipsis;white-space:nowrap;border:1px solid #EBEBEB}
+.btn-copy{background:#191818;color:#F9F9F9;border:none;border-radius:7px;
+          font-family:'Montserrat',sans-serif;font-size:10px;font-weight:700;
+          padding:6px 12px;cursor:pointer;flex-shrink:0;transition:.15s}
+.btn-copy:hover{background:#333}
+.token-hint{font-size:10px;color:#BBB;line-height:1.5}
+
+/* ── Animações ── */
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes slideUp{
+  from{opacity:0;transform:translateX(-50%) translateY(14px)}
+  to{opacity:1;transform:translateX(-50%) translateY(0)}
+}
 
+/* ── Responsivo ── */
 @media(max-width:500px){
   .counters{grid-template-columns:repeat(2,1fr)}
   .inner{padding:1rem}
+  .header{padding:.875rem 1rem}
 }
 </style>
 </head>
@@ -129,19 +162,22 @@ body{font-family:'Montserrat',sans-serif;background:#F9F9F9;color:#191818;min-he
   <!-- Header -->
   <div class="header">
     <div class="header-left">
-      <svg viewBox="0 0 380 100" width="110" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="0 0 380 100" width="100" xmlns="http://www.w3.org/2000/svg">
         <circle cx="28" cy="30" r="22" fill="#F9F9F9"/>
         <rect x="16" y="42" width="14" height="52" rx="7" fill="#F9F9F9"/>
         <text x="56" y="83" font-family="'Montserrat','Arial Rounded MT Bold',sans-serif"
               font-weight="900" font-size="62" fill="#F9F9F9" letter-spacing="-1">hocus</text>
       </svg>
     </div>
-    <div style="text-align:right">
+    <div class="header-info">
       <div class="greeting">Olá, {{ nome }} ☀️</div>
       <div class="date-lbl">{{ hoje|upper }}</div>
     </div>
-    <div style="margin-left:1rem">
-      <a href="/logout" class="btn-logout">Sair</a>
+    <div class="header-right">
+      {% if token %}
+      <button class="btn-config" onclick="toggleConfig()" title="Configurações Claude MCP">⚙</button>
+      {% endif %}
+      <a href="/logout" class="btn-logout">↩ Sair</a>
     </div>
   </div>
 
@@ -151,20 +187,50 @@ body{font-family:'Montserrat',sans-serif;background:#F9F9F9;color:#191818;min-he
     <div class="alert">⚠️ {{ erros }}</div>
     {% endif %}
 
+    <!-- Painel de configuração (colapsável) -->
+    {% if token %}
+    <div class="config-panel" id="config-panel">
+      <div class="config-title">⚙ Configuração Claude MCP</div>
+      <div class="token-row">
+        <div class="token-val" id="token-val">{{ token }}</div>
+        <button class="btn-copy" onclick="copiarToken()">Copiar</button>
+      </div>
+      <div class="token-hint">
+        No claude.ai → Settings → Integrations → Add MCP Server<br>
+        URL: <strong>https://[seu-dominio]/sse</strong> · Token acima
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Refresh bar -->
     <div class="refresh-bar">
-      <div class="refresh-info" id="ultima-atualizacao">Atualizado agora</div>
       <button class="btn-refresh" id="btn-refresh" onclick="atualizar()">
         ↻ Atualizar
       </button>
+      <div class="refresh-meta">
+        <span id="ultima-atualizacao">—</span>
+        <span style="color:#CCC">atualiza automaticamente</span>
+      </div>
     </div>
 
     <!-- Contadores -->
     <div class="counters">
-      <div class="cnt r"><div class="cnt-n" id="cnt-urgente">{{ contadores.urgente }}</div><div class="cnt-l">Urgentes</div></div>
-      <div class="cnt a"><div class="cnt-n" id="cnt-importante">{{ contadores.importante }}</div><div class="cnt-l">Importantes</div></div>
-      <div class="cnt g"><div class="cnt-n" id="cnt-atencao">{{ contadores.atencao }}</div><div class="cnt-l">Atenção</div></div>
-      <div class="cnt b"><div class="cnt-n" id="cnt-baixa">{{ contadores.baixa }}</div><div class="cnt-l">Baixa</div></div>
+      <div class="cnt r" id="cnt-box-urgente">
+        <div class="cnt-n" id="cnt-urgente">{{ contadores.urgente }}</div>
+        <div class="cnt-l">Urgentes</div>
+      </div>
+      <div class="cnt a" id="cnt-box-importante">
+        <div class="cnt-n" id="cnt-importante">{{ contadores.importante }}</div>
+        <div class="cnt-l">Importantes</div>
+      </div>
+      <div class="cnt g" id="cnt-box-atencao">
+        <div class="cnt-n" id="cnt-atencao">{{ contadores.atencao }}</div>
+        <div class="cnt-l">Atenção</div>
+      </div>
+      <div class="cnt b" id="cnt-box-baixa">
+        <div class="cnt-n" id="cnt-baixa">{{ contadores.baixa }}</div>
+        <div class="cnt-l">Baixa</div>
+      </div>
     </div>
 
     <!-- Lista de e-mails -->
@@ -185,11 +251,13 @@ body{font-family:'Montserrat',sans-serif;background:#F9F9F9;color:#191818;min-he
             <div class="sec-lbl">{{ label }}</div>
           </div>
           {% for e in grupo_emails %}
-          <div class="ecard {{ cor }}" onclick="toggle(this)">
+          <div class="ecard {{ cor }}{% if e.message_id in resolvidos %} resolved{% endif %}"
+               data-msgid="{{ e.message_id | e }}" onclick="toggle(this)">
             <div class="ecard-main">
               <div class="check-circle" onclick="resolver(event,this)">
                 <svg class="chk" width="12" height="10" viewBox="0 0 12 10" fill="none">
-                  <path d="M1 5l3.5 3.5L11 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M1 5l3.5 3.5L11 1" stroke="white" stroke-width="2.2"
+                        stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </div>
               <div class="ecard-body">
@@ -214,10 +282,11 @@ body{font-family:'Montserrat',sans-serif;background:#F9F9F9;color:#191818;min-he
       {% endfor %}
 
       {% if not emails %}
-      <div class="empty-state">
-        <div class="empty-icon">📭</div>
-        <div class="empty-msg">Nenhum e-mail não lido nas últimas 18h</div>
-        <div class="empty-sub">Você está em dia!</div>
+      <div class="empty-wrap">
+        <div class="empty-icon">✉️</div>
+        <div class="empty-msg">Caixa em dia</div>
+        <div class="empty-sub">Nenhum e-mail não lido nas últimas 18h.<br>Volte amanhã cedo para a triagem do dia.</div>
+        <div class="empty-tag">✓ Tudo resolvido</div>
       </div>
       {% endif %}
     </div>
@@ -226,34 +295,129 @@ body{font-family:'Montserrat',sans-serif;background:#F9F9F9;color:#191818;min-he
 </div>
 
 <script>
+// ── Toggle / Resolver ────────────────────────────────────────────────────────
 function toggle(card) {
   if (event.target.closest('.check-circle')) return;
   card.classList.toggle('open');
 }
-function resolver(e, circle) {
+
+async function resolver(e, circle) {
   e.stopPropagation();
-  circle.closest('.ecard').classList.toggle('resolved');
+  const card = circle.closest('.ecard');
+  const isResolved = card.classList.toggle('resolved');
+  const msgId = card.dataset.msgid;
+  try {
+    await fetch('/api/resolver', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ message_id: msgId, acao: isResolved ? 'resolver' : 'desmarcar' })
+    });
+  } catch(_) {}
 }
 
+// ── Config panel ──────────────────────────────────────────────────────────────
+function toggleConfig() {
+  document.getElementById('config-panel').classList.toggle('open');
+}
+
+function copiarToken() {
+  const val = document.getElementById('token-val').textContent;
+  navigator.clipboard.writeText(val).then(() => {
+    const btn = event.target;
+    btn.textContent = '✓ Copiado';
+    setTimeout(() => btn.textContent = 'Copiar', 2000);
+  });
+}
+
+// ── Contadores: cinza quando zero ────────────────────────────────────────────
+function atualizarEstiloContadores() {
+  [['cnt-urgente','cnt-box-urgente'],
+   ['cnt-importante','cnt-box-importante'],
+   ['cnt-atencao','cnt-box-atencao'],
+   ['cnt-baixa','cnt-box-baixa']].forEach(([valId, boxId]) => {
+    const val = parseInt(document.getElementById(valId).textContent) || 0;
+    document.getElementById(boxId).classList.toggle('zero', val === 0);
+  });
+}
+
+// ── Badge no título da aba ────────────────────────────────────────────────────
+function atualizarBadge(urgentes) {
+  document.title = urgentes > 0
+    ? `(${urgentes}) Meu Dia — {{ nome }}`
+    : `Meu Dia — {{ nome }}`;
+}
+
+// ── Banner "novos e-mails" ────────────────────────────────────────────────────
+function mostrarBanner(novos) {
+  let b = document.getElementById('banner-novos');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'banner-novos';
+    b.style.cssText = [
+      'position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%)',
+      'background:#191818;color:#F9F9F9;padding:10px 22px;border-radius:10px',
+      'font-size:13px;font-weight:700;cursor:pointer',
+      'box-shadow:0 4px 24px rgba(0,0,0,.25);z-index:999',
+      'display:flex;align-items:center;gap:8px',
+      'border:1px solid rgba(255,255,255,.1);animation:slideUp .3s ease'
+    ].join(';');
+    b.onclick = () => window.location.reload();
+    document.body.appendChild(b);
+  }
+  b.innerHTML = `↻ ${novos} novo${novos !== 1 ? 's' : ''} e-mail${novos !== 1 ? 's' : ''} — toque para atualizar`;
+}
+
+// ── Estado atual ──────────────────────────────────────────────────────────────
+let _totalAtual = {{ (contadores.urgente + contadores.importante + contadores.atencao + contadores.baixa) }};
+
+// ── Verificação silenciosa ────────────────────────────────────────────────────
+async function verificarNovos() {
+  try {
+    const r = await fetch('/api/atualizar');
+    const d = await r.json();
+    const { urgente, importante, atencao, baixa } = d.contadores;
+    const total = urgente + importante + atencao + baixa;
+
+    document.getElementById('cnt-urgente').textContent    = urgente;
+    document.getElementById('cnt-importante').textContent = importante;
+    document.getElementById('cnt-atencao').textContent    = atencao;
+    document.getElementById('cnt-baixa').textContent      = baixa;
+
+    atualizarEstiloContadores();
+    atualizarBadge(urgente);
+
+    if (total > _totalAtual) mostrarBanner(total - _totalAtual);
+    _totalAtual = total;
+
+    const agora = new Date();
+    document.getElementById('ultima-atualizacao').textContent =
+      'Atualizado às ' + agora.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+  } catch(_) {}
+}
+
+// ── Botão manual ──────────────────────────────────────────────────────────────
 async function atualizar() {
   const btn = document.getElementById('btn-refresh');
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span> Atualizando...';
   try {
-    const r = await fetch('/api/atualizar');
-    const d = await r.json();
-    // Recarrega a página para refletir novos dados
+    await verificarNovos();
     window.location.reload();
-  } catch(e) {
+  } catch(_) {
     btn.disabled = false;
     btn.innerHTML = '↻ Atualizar';
   }
 }
 
-// Atualiza timestamp
+// ── Init ──────────────────────────────────────────────────────────────────────
+atualizarBadge({{ contadores.urgente }});
+atualizarEstiloContadores();
+
 const agora = new Date();
 document.getElementById('ultima-atualizacao').textContent =
   'Atualizado às ' + agora.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+
+setInterval(verificarNovos, 5 * 60 * 1000);
 </script>
 
 </body>
