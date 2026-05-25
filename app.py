@@ -654,6 +654,48 @@ def briefing(token):
     )
 
 
+@app.route('/meu-token', methods=['GET', 'POST'])
+def meu_token():
+    """Página simples: entra com e-mail + senha e mostra o token do conector MCP."""
+    token = erro = None
+    if request.method == 'POST':
+        email_addr = request.form.get('email', '').strip().lower()
+        senha      = request.form.get('senha', '')
+        if email_addr and senha:
+            _, erros, empresa = ler_emails(email_addr, senha, horas=1)
+            if erros:
+                erro = erros
+            else:
+                token = salvar_sessao(email_addr, senha, empresa)
+    return f'''<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><title>Meu Token MCP</title>
+<style>body{{font-family:sans-serif;max-width:480px;margin:4rem auto;padding:1rem;color:#191818}}
+h2{{margin-bottom:1.5rem}}label{{display:block;margin-bottom:.25rem;font-size:.875rem;font-weight:500}}
+input{{width:100%;padding:.6rem .75rem;border:1px solid #CCC;border-radius:6px;font-size:.9rem;margin-bottom:1rem;box-sizing:border-box}}
+button{{background:#B0A2F9;color:#191818;border:none;padding:.7rem 1.5rem;border-radius:6px;font-weight:600;cursor:pointer;font-size:.9rem}}
+.token-box{{background:#F5F5F5;border:1px solid #DDD;border-radius:8px;padding:1rem;margin-top:1.5rem;word-break:break-all}}
+.token-box small{{display:block;margin-bottom:.5rem;color:#888;font-size:.75rem}}
+.token-box code{{font-size:.85rem;font-weight:600;color:#191818}}
+.url-box{{background:#191818;color:#B0A2F9;border-radius:8px;padding:1rem;margin-top:.75rem;word-break:break-all;font-size:.8rem;font-family:monospace}}
+.erro{{color:#c00;font-size:.875rem;margin-bottom:.75rem}}</style>
+</head><body>
+<h2>🔑 Token do conector MCP</h2>
+{"" if not erro else f'<p class="erro">❌ {erro}</p>'}
+{"" if token else f"""<form method="POST">
+<label>E-mail</label><input name="email" type="email" placeholder="nome@phocuspropaganda.com.br" required>
+<label>Senha</label><input name="senha" type="password" required>
+<button type="submit">Ver meu token</button>
+</form>"""}
+{"" if not token else f"""<div class="token-box">
+<small>Seu token:</small>
+<code>{token}</code>
+</div>
+<div class="url-box">https://meudia.up.railway.app/mcp/{token}/sse</div>
+<p style="margin-top:1rem;font-size:.8rem;color:#888">Cole essa URL no campo do conector MCP no claude.ai</p>"""}
+</body></html>'''
+
+
 @app.route('/debug/mcp')
 def debug_mcp():
     try:
