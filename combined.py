@@ -2,12 +2,10 @@
 Phocus Meu Dia — Servidor combinado
 Flask (web app) + FastMCP (MCP server) em uma única porta via Starlette router.
 
-Rotas:
-  /mcp/{TOKEN}/sse       → MCP server com token embutido na URL
-  /mcp/{TOKEN}/messages  → MCP messages endpoint
-  /* (resto)             → Flask app (login, dashboard, api)
+URL do conector MCP: https://meudia.up.railway.app/mcp/TOKEN/sse
 """
 
+import re
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -24,33 +22,63 @@ from starlette.middleware.wsgi import WSGIMiddleware
 from app import app as flask_app
 from mcp_server import mcp, mcp_token_ctx
 
-# ASGI app do MCP (SSE transport)
+# Registro global: session_id → token
+# Preenchido quando o cliente conecta via SSE /TOKEN/sse
+_session_tokens: dict[str, str] = {}
+
 mcp_asgi = mcp.http_app(transport='sse')
 
 
-class TokenExtractMiddleware:
-    """Extrai token do path /TOKEN/... e injeta no contextvar antes de chamar o MCP."""
+class TokenMiddleware:
+    """
+    Extrai token do path /TOKEN/sse e registra no mapa session_id→token.
+    Quando mensagens chegam em /messages/SESSION_ID, injeta o token no contextvar.
+    """
     def __init__(self, app):
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope['type'] in ('http', 'websocket'):
-            path = scope.get('path', '')
-            parts = path.lstrip('/').split('/', 1)
-            if parts[0] and parts[0] != 'sse' and parts[0] != 'messages':
-                # Primeiro segmento é o token
-                token = parts[0]
-                remaining = '/' + parts[1] if len(parts) > 1 else '/'
+        if scope['type'] != 'http':
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get('path', '').lstrip('/')
+        parts = path.split('/', 1)
+        first = parts[0]
+        rest  = '/' + parts[1] if len(parts) > 1 else '/'
+
+        # ── Conexão SSE: /TOKEN/sse ──────────────────────────────────────────
+        if rest == '/sse' and first not in ('', 'sse', 'messages'):
+            token = first
+            scope = {**scope, 'path': '/sse', 'raw_path': b'/sse'}
+
+            # Intercepta resposta para capturar o session_id que o FastMCP gerar
+            async def capturing_send(message):
+                if message.get('type') == 'http.response.body':
+                    body = message.get('body', b'').decode('utf-8', errors='replace')
+                    # FastMCP envia: "data: /messages/SESSION_ID"
+                    m = re.search(r'data:\s*/messages/([^\n\r\s]+)', body)
+                    if m:
+                        session_id = m.group(1).strip()
+                        _session_tokens[session_id] = token
+                await send(message)
+
+            await self.app(scope, receive, capturing_send)
+            return
+
+        # ── Chamada de ferramenta: /messages/SESSION_ID ──────────────────────
+        if first == 'messages' and len(parts) > 1:
+            session_id = parts[1].split('?')[0].strip()
+            token = _session_tokens.get(session_id, '')
+            if token:
                 mcp_token_ctx.set(token)
-                scope = dict(scope)
-                scope['path'] = remaining
-                scope['raw_path'] = remaining.encode()
+            await self.app(scope, receive, send)
+            return
+
         await self.app(scope, receive, send)
 
 
-mcp_with_token = TokenExtractMiddleware(mcp_asgi)
-
 combined = Starlette(routes=[
-    Mount('/mcp', app=mcp_with_token),
+    Mount('/mcp', app=TokenMiddleware(mcp_asgi)),
     Mount('/', app=WSGIMiddleware(flask_app)),
 ])
