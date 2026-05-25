@@ -411,17 +411,6 @@ def meu_dia():
     )
 
 
-@app.route('/mcp-url')
-@login_required
-def mcp_url():
-    """Retorna a URL personalizada do MCP para o usuário logado."""
-    token = session.get('token') or salvar_sessao(session['email'], session['senha'],
-                                                   session.get('empresa', 'phocus'))
-    base = os.environ.get('BASE_URL', 'https://meudia.up.railway.app')
-    url  = f"{base}/mcp/{token}"
-    return jsonify({'mcp_url': url, 'sse_url': f"{url}/sse"})
-
-
 @app.route('/api/resolver', methods=['POST'])
 @login_required
 def api_resolver():
@@ -663,22 +652,6 @@ def briefing(token):
         logo_src=_logo_b64(logo),
         briefing_ia=briefing_ia,
     )
-
-
-@app.route('/api/configurar', methods=['POST'])
-def api_configurar():
-    """Valida credenciais e retorna token permanente — usado pelo MCP no primeiro acesso."""
-    data = request.get_json() or {}
-    email_addr = data.get('email', '').strip().lower()
-    senha      = data.get('senha', '').strip()
-    if not email_addr or not senha:
-        return jsonify({'ok': False, 'erro': 'email e senha são obrigatórios'})
-    _, erros, empresa = ler_emails(email_addr, senha, horas=1)
-    if erros:
-        return jsonify({'ok': False, 'erro': f'Credenciais inválidas: {erros}'})
-    token = salvar_sessao(email_addr, senha, empresa)
-    nome = email_addr.split('@')[0].replace('.', ' ').title().split()[0]
-    return jsonify({'ok': True, 'token': token, 'nome': nome, 'empresa': empresa})
 
 
 @app.route('/api/salvar-briefing', methods=['POST'])
