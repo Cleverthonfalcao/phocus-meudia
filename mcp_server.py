@@ -51,7 +51,7 @@ def get_sessao(token: str):
 # ── Ferramentas MCP ────────────────────────────────────────────────────────────
 
 @mcp.tool()
-def briefing_do_dia(token: str) -> str:
+def ler_meus_emails(token: str) -> str:
     """
     Retorna a URL do briefing diário ao vivo do usuário autenticado.
     A página carrega a triagem de e-mails em tempo real e auto-atualiza a cada 5 min.
