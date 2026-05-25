@@ -124,6 +124,18 @@ body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-he
 .empty-tag{margin-top:.75rem;background:#EDFAF3;color:#2E8A59;font-size:11px;font-weight:700;
            padding:4px 12px;border-radius:20px;letter-spacing:.04em}
 
+/* ── Briefing IA ── */
+.ia-section{background:#fff;border-radius:14px;padding:1.25rem 1.5rem;margin-top:1.5rem;
+            border:1px solid rgba(176,162,249,.25);border-left:3px solid #B0A2F9}
+.ia-header{display:flex;align-items:center;gap:8px;margin-bottom:.75rem}
+.ia-icon{color:#B0A2F9;font-size:14px}
+.ia-title{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#B0A2F9}
+.ia-hora{font-size:11px;color:#CCC;margin-left:auto}
+.ia-body{font-size:13px;line-height:1.75;color:#444;white-space:pre-wrap}
+.ia-vazio{display:flex;align-items:center;gap:8px;font-size:13px;color:#AAA;
+          border-left-color:#E5E5E5;background:#FAFAFA}
+.ia-vazio strong{color:#666}
+
 /* ── Painel de configuração ── */
 .config-panel{display:none;margin-bottom:1.25rem;padding:1rem;background:#fff;
               border-radius:12px;border:1px solid rgba(25,24,24,.07)}
@@ -285,6 +297,22 @@ body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-he
       </div>
       {% endif %}
     </div>
+
+    {% if briefing_ia %}
+    <div class="ia-section">
+      <div class="ia-header">
+        <span class="ia-icon">✦</span>
+        <span class="ia-title">Briefing IA</span>
+        <span class="ia-hora">gerado às {{ briefing_ia[1][11:16] }}</span>
+      </div>
+      <div class="ia-body">{{ briefing_ia[0] | replace('\n', '<br>') | safe }}</div>
+    </div>
+    {% else %}
+    <div class="ia-section ia-vazio">
+      <span class="ia-icon">✦</span>
+      Digite <strong>"meu dia"</strong> no claude.ai para gerar sugestões de resposta com IA — aparecerão aqui automaticamente.
+    </div>
+    {% endif %}
 
   </div>
 </div>

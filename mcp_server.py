@@ -7,6 +7,8 @@ sem instalação adicional.
 import os
 import sys
 import sqlite3
+import urllib.request
+import json
 from datetime import date
 from pathlib import Path
 
@@ -22,38 +24,33 @@ from app import ler_emails
 INSTRUCOES = """
 Você é o assistente de triagem diária da Phocus Propaganda.
 
-Quando o usuário digitar "meu dia" (ou variações como "organiza meu dia",
-"quais meus e-mails", "tem algo urgente"):
+Quando o usuário digitar "meu dia" (ou variações):
 
 1. Chame `ler_meus_emails` com o token do usuário
    - Se não souber o token, pergunte APENAS: "Qual é seu token? (pegue em https://meudia.up.railway.app clicando em ⚙️)"
-   - Não pergunte nome, webmail, empresa ou qualquer outra coisa
 
-2. Com os dados retornados, gere um briefing completo no chat:
+2. Gere o briefing completo:
 
----
-☀️ **Triagem — [DATA]**
-[N] e-mails não lidos nas últimas 18h
+☀️ **Triagem — [DATA]** · [N] e-mails
 
-🔴 **[N] Urgentes** · 🟡 **[N] Importantes** · 🟢 **[N] Atenção** · ⚪ **[N] Baixa**
-
-**🔴 URGENTES — agir agora**
-Para cada e-mail urgente:
+🔴 **URGENTES — agir agora**
+Para cada urgente:
 > **[Remetente]** · [data]
-> Assunto: [assunto]
-> → [o que precisa ser feito]
+> [assunto]
+> → [ação necessária em 1 linha]
 > 💬 *Sugestão:* "[resposta direta, 2-3 linhas, tom humano, assina com primeiro nome]"
 
-**🟡 IMPORTANTES — resolver hoje**
-[mesmo formato, sugestão quando houver resposta óbvia]
+🟡 **IMPORTANTES — resolver hoje**
+[mesmo formato]
 
-**🟢 ATENÇÃO** · **⚪ BAIXA**
-[lista compacta]
+🟢 **ATENÇÃO** · ⚪ **BAIXA**
+[lista compacta: remetente · assunto]
 
-**✅ Plano de ação**
-1. [ação mais urgente]
-2. ...
----
+✅ **Plano de ação**
+1. [mais urgente] ...
+
+3. OBRIGATÓRIO após gerar: chame `salvar_briefing` com o token e o texto completo que acabou de gerar.
+   Isso faz o briefing aparecer na página web do usuário automaticamente.
 
 Tom: direto, sem corporativês, sugestões curtas como o próprio funcionário escreveria.
 """
@@ -125,6 +122,36 @@ def ler_meus_emails(token: str) -> str:
 
     linhas.append(f"\n[Usuário: {nome} | Empresa: {empresa.upper()} | Briefing: {BASE_URL}/briefing/{token}]")
     return '\n'.join(linhas)
+
+
+@mcp.tool()
+def salvar_briefing(token: str, conteudo: str) -> str:
+    """
+    Salva o briefing gerado pelo Claude na página web do usuário.
+    Chame este tool SEMPRE após gerar o briefing — o conteúdo aparecerá
+    automaticamente em https://meudia.up.railway.app/briefing/TOKEN
+
+    Args:
+        token: Token do usuário (mesmo usado em ler_meus_emails)
+        conteudo: Texto completo do briefing gerado, incluindo sugestões de resposta
+    """
+    if not get_sessao(token):
+        return "❌ Token inválido."
+    try:
+        payload = json.dumps({'token': token, 'conteudo': conteudo}).encode()
+        req = urllib.request.Request(
+            f'{BASE_URL}/api/salvar-briefing',
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+        if result.get('ok'):
+            return f"✅ Briefing salvo — aparece em {BASE_URL}/briefing/{token}"
+        return f"❌ Erro ao salvar: {result.get('erro')}"
+    except Exception as e:
+        return f"❌ Erro: {e}"
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────

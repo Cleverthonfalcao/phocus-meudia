@@ -75,6 +75,12 @@ def init_db():
             token     TEXT NOT NULL UNIQUE,
             criado_em TEXT NOT NULL
         )''')
+        db_execute('''CREATE TABLE IF NOT EXISTS briefings (
+            id         SERIAL PRIMARY KEY,
+            token      TEXT NOT NULL UNIQUE,
+            conteudo   TEXT NOT NULL,
+            gerado_em  TEXT NOT NULL
+        )''')
     else:
         db_execute('''CREATE TABLE IF NOT EXISTS resolvidos (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,8 +97,34 @@ def init_db():
             token     TEXT NOT NULL UNIQUE,
             criado_em TEXT NOT NULL
         )''')
+        db_execute('''CREATE TABLE IF NOT EXISTS briefings (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            token     TEXT NOT NULL UNIQUE,
+            conteudo  TEXT NOT NULL,
+            gerado_em TEXT NOT NULL
+        )''')
 
 init_db()
+
+
+def salvar_briefing_ia(token: str, conteudo: str):
+    if DATABASE_URL:
+        db_execute(
+            f'INSERT INTO briefings (token, conteudo, gerado_em) VALUES ({_ph(3)}) '
+            f'ON CONFLICT (token) DO UPDATE SET conteudo={_ph()}, gerado_em={_ph()}',
+            (token, conteudo, datetime.now().isoformat(), conteudo, datetime.now().isoformat())
+        )
+    else:
+        db_execute(
+            f'INSERT OR REPLACE INTO briefings (token, conteudo, gerado_em) VALUES ({_ph(3)})',
+            (token, conteudo, datetime.now().isoformat())
+        )
+
+def get_briefing_ia(token: str):
+    return db_execute(
+        f'SELECT conteudo, gerado_em FROM briefings WHERE token={_ph()}',
+        (token,), fetchone=True
+    )
 
 
 def gerar_token():
@@ -606,6 +638,7 @@ def briefing(token):
     nome = usuario.split('@')[0].replace('.', ' ').title().split()[0]
     resolvidos = get_resolvidos(usuario)
 
+    briefing_ia = get_briefing_ia(token)
     logo = 'logo-maxi-branca.png' if empresa == 'maximize' else 'logo-phocus-branca.png'
     return render_template('meu_dia.html',
         emails=emails,
@@ -617,7 +650,22 @@ def briefing(token):
         resolvidos=resolvidos,
         token=token,
         logo_src=_logo_b64(logo),
+        briefing_ia=briefing_ia,
     )
+
+
+@app.route('/api/salvar-briefing', methods=['POST'])
+def api_salvar_briefing():
+    """Salva o briefing gerado pelo Claude no claude.ai."""
+    data = request.get_json() or {}
+    token = data.get('token', '').strip()
+    conteudo = data.get('conteudo', '').strip()
+    if not token or not conteudo:
+        return jsonify({'ok': False, 'erro': 'token e conteudo obrigatórios'})
+    if not get_sessao_por_token(token):
+        return jsonify({'ok': False, 'erro': 'token inválido'})
+    salvar_briefing_ia(token, conteudo)
+    return jsonify({'ok': True})
 
 
 if __name__ == '__main__':
