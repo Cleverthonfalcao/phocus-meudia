@@ -60,7 +60,7 @@ class TokenMiddleware:
             async def capture_send(message):
                 if message.get('type') == 'http.response.body':
                     body = message.get('body', b'').decode('utf-8', errors='replace')
-                    sid = re.search(r'data:\s*/messages/([^\n\r\s]+)', body)
+                    sid = re.search(r'data:\s*(?:/mcp)?/messages/([^\n\r\s]+)', body)
                     if sid:
                         _sessions[sid.group(1).strip()] = token
                 await send(message)
