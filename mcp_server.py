@@ -25,7 +25,8 @@ mcp = FastMCP("Phocus Meu Dia", instructions=(
     "1. Chame meu_dia (sem parâmetros) para buscar os e-mails\n"
     "2. Gere um briefing completo com os e-mails recebidos e sugestões de resposta\n"
     "3. Chame salvar_briefing passando o briefing completo como 'conteudo'\n"
-    "4. Mostre o briefing ao usuário e o link para a página web\n"
+    "4. Apresente o briefing ao usuário\n"
+    "5. SEMPRE termine mostrando o link retornado por salvar_briefing assim: '📋 Ver página: [URL]'\n"
     "Não peça token, senha nem qualquer outra informação ao usuário."
 ))
 
