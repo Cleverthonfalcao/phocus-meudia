@@ -23,46 +23,12 @@ from app import ler_emails
 # ── Instruções para o Claude ───────────────────────────────────────────────────
 INSTRUCOES = """
 Você é o assistente de triagem diária da Phocus Propaganda.
-NÃO pergunte sobre webmail, Chrome, URL ou configuração. Use APENAS as ferramentas abaixo.
 
-Quando o usuário digitar "meu dia" (ou variações como "bom dia", "triagem", "e-mails"):
-
-── PRIMEIRO ACESSO (sem token) ──
-Se não houver token nas instruções do projeto:
-1. Pergunte APENAS: "Para configurar, preciso do seu e-mail e senha da Phocus/Maximize."
-2. Chame `configurar_acesso` com o e-mail e senha informados.
-3. O tool retorna o token. Responda EXATAMENTE assim (substituindo TOKEN pelo valor real):
-   "✅ Configurado, [NOME]! Seu token é: `TOKEN`
-
-   Para não precisar configurar de novo, cole isto nas **Project Instructions** deste projeto no claude.ai:
-   `Meu token Phocus Meu Dia: TOKEN`
-
-   Agora vou buscar seus e-mails..."
-4. Chame imediatamente `ler_meus_emails` com o token recebido e gere o briefing.
-
-── USO DIÁRIO (com token) ──
-Se o token já estiver disponível:
-1. Chame IMEDIATAMENTE `ler_meus_emails` com o token.
-2. Gere o briefing completo:
-
-☀️ **Triagem — [DATA]** · [N] e-mails
-
-🔴 **URGENTES — agir agora**
-> **[Remetente]** · [data] · [assunto]
-> → [ação em 1 linha]
-> 💬 *Sugestão:* "[resposta direta, 2-3 linhas, tom humano, assina com primeiro nome]"
-
-🟡 **IMPORTANTES — resolver hoje** [mesmo formato]
-
-🟢 **ATENÇÃO** · ⚪ **BAIXA** [lista compacta]
-
-✅ **Plano de ação**
-1. [mais urgente] ...
-
-3. OBRIGATÓRIO após gerar: chame `salvar_briefing` com o token e o texto completo.
-   Isso faz o briefing aparecer em https://meudia.up.railway.app/briefing/TOKEN automaticamente.
-
-Tom: direto, sem corporativês, sugestões curtas como o próprio funcionário escreveria.
+Quando o usuário digitar "meu dia" (ou variações):
+1. Chame a ferramenta `meu_dia` imediatamente.
+2. Se ela retornar PRECISA_CONFIGURAR, peça e-mail e senha e chame novamente.
+3. Com os dados de e-mails retornados, gere o briefing com sugestões de resposta.
+4. Chame `salvar_briefing` ao final.
 """
 
 mcp = FastMCP("Phocus Meu Dia", instructions=INSTRUCOES)
@@ -81,54 +47,11 @@ def get_sessao(token: str):
 
 # ── Ferramentas MCP ────────────────────────────────────────────────────────────
 
-@mcp.tool()
-def configurar_acesso(email: str, senha: str) -> str:
-    """
-    Primeiro acesso: valida e-mail e senha, cria sessão e retorna token permanente.
-    Use este tool quando o usuário ainda não tiver token configurado.
-
-    Args:
-        email: E-mail completo do funcionário (ex: nome@phocuspropaganda.com.br)
-        senha: Senha do e-mail (mesma usada no webmail)
-    """
-    try:
-        payload = json.dumps({'email': email, 'senha': senha}).encode()
-        req = urllib.request.Request(
-            f'{BASE_URL}/api/configurar',
-            data=payload,
-            headers={'Content-Type': 'application/json'},
-            method='POST'
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            result = json.loads(resp.read())
-        if result.get('ok'):
-            return json.dumps({
-                'ok': True,
-                'token': result['token'],
-                'nome': result['nome'],
-                'empresa': result['empresa']
-            })
-        return f"❌ {result.get('erro', 'Erro desconhecido')}"
-    except Exception as e:
-        return f"❌ Erro ao configurar: {e}"
-
-
-@mcp.tool()
-def ler_meus_emails(token: str) -> str:
-    """
-    Lê e classifica os e-mails não lidos das últimas 18h do usuário autenticado.
-    Retorna os dados para o Claude gerar briefing com sugestões de resposta por IA.
-
-    Args:
-        token: Token do usuário (obtido em https://meudia.up.railway.app clicando em ⚙️)
-    """
+def _buscar_emails(token: str) -> str:
+    """Lógica interna: dado um token válido, retorna os e-mails formatados."""
     sessao = get_sessao(token)
     if not sessao:
-        return (
-            "❌ Token inválido ou expirado.\n"
-            "Acesse https://meudia.up.railway.app, faça login e copie seu token "
-            "nas configurações (ícone ⚙️ no topo da página)."
-        )
+        return "❌ Token inválido."
 
     usuario, senha, empresa = sessao
     emails, erros, _ = ler_emails(usuario, senha, horas=18)
@@ -162,8 +85,80 @@ def ler_meus_emails(token: str) -> str:
                 linhas.append(f"Prévia: {e['corpo'][:300]}{'...' if len(e['corpo']) > 300 else ''}")
             linhas.append("")
 
-    linhas.append(f"\n[Usuário: {nome} | Empresa: {empresa.upper()} | Briefing: {BASE_URL}/briefing/{token}]")
+    linhas.append(f"\n[TOKEN:{token} | Usuário:{nome} | Empresa:{empresa.upper()} | Briefing:{BASE_URL}/briefing/{token}]")
     return '\n'.join(linhas)
+
+
+@mcp.tool()
+def meu_dia(token: str = '', email: str = '', senha: str = '') -> str:
+    """
+    Triagem diária de e-mails da Phocus Propaganda.
+    Chame este tool quando o usuário pedir 'meu dia', 'triagem' ou quiser ver seus e-mails.
+
+    Fluxo automático:
+    - Se token fornecido: lê e-mails diretamente.
+    - Se email+senha fornecidos: configura acesso e lê e-mails.
+    - Se nenhum: retorna PRECISA_CONFIGURAR com instruções.
+
+    Args:
+        token: Token permanente do usuário (se já configurado nas Project Instructions)
+        email: E-mail do funcionário — só necessário no primeiro acesso
+        senha: Senha do e-mail — só necessária no primeiro acesso
+    """
+    # Caso 1: tem token → lê direto
+    if token.strip():
+        return _buscar_emails(token.strip())
+
+    # Caso 2: tem email+senha → configura e lê
+    if email.strip() and senha.strip():
+        try:
+            payload = json.dumps({'email': email.strip(), 'senha': senha.strip()}).encode()
+            req = urllib.request.Request(
+                f'{BASE_URL}/api/configurar',
+                data=payload,
+                headers={'Content-Type': 'application/json'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                result = json.loads(resp.read())
+            if not result.get('ok'):
+                return f"❌ Login inválido: {result.get('erro')}"
+            novo_token = result['token']
+            nome = result['nome']
+            emails_texto = _buscar_emails(novo_token)
+            return (
+                f"PRIMEIRO_ACESSO\n"
+                f"TOKEN:{novo_token}\n"
+                f"NOME:{nome}\n"
+                f"---\n"
+                f"✅ Olá, {nome}! Acesso configurado.\n\n"
+                f"Salve este token nas **Project Instructions** do seu projeto no claude.ai "
+                f"para não precisar configurar de novo:\n"
+                f"`Meu token Phocus Meu Dia: {novo_token}`\n\n"
+                f"Agora seus e-mails:\n\n{emails_texto}"
+            )
+        except Exception as e:
+            return f"❌ Erro ao configurar: {e}"
+
+    # Caso 3: nada fornecido → pede só e-mail e senha
+    return (
+        "PRECISA_CONFIGURAR\n"
+        "Para acessar seus e-mails, preciso do seu login:\n"
+        "- **E-mail** (ex: nome@phocuspropaganda.com.br ou nome@maximize.com.br)\n"
+        "- **Senha** — a mesma que você usa no e-mail\n\n"
+        "Chame novamente este tool com email e senha após receber os dados."
+    )
+
+
+@mcp.tool()
+def ler_meus_emails(token: str) -> str:
+    """
+    Lê e-mails usando token. Use meu_dia() para o fluxo completo com configuração automática.
+
+    Args:
+        token: Token do usuário
+    """
+    return _buscar_emails(token)
 
 
 @mcp.tool()
