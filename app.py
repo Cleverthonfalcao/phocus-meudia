@@ -365,6 +365,7 @@ def meu_dia():
 
     resolvidos = get_resolvidos(session['email'])
 
+    logo = 'logo-maxi-branca.png' if empresa == 'maximize' else 'logo-phocus-branca.png'
     return render_template('meu_dia.html',
         emails=emails,
         contadores=contadores,
@@ -374,6 +375,7 @@ def meu_dia():
         erros=erros,
         resolvidos=resolvidos,
         token=session.get('token',''),
+        logo_src=_logo_b64(logo),
     )
 
 
@@ -604,6 +606,7 @@ def briefing(token):
     nome = usuario.split('@')[0].replace('.', ' ').title().split()[0]
     resolvidos = get_resolvidos(usuario)
 
+    logo = 'logo-maxi-branca.png' if empresa == 'maximize' else 'logo-phocus-branca.png'
     return render_template('meu_dia.html',
         emails=emails,
         contadores=contadores,
@@ -613,6 +616,7 @@ def briefing(token):
         erros=erros,
         resolvidos=resolvidos,
         token=token,
+        logo_src=_logo_b64(logo),
     )
 
 

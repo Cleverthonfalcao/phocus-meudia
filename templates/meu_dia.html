@@ -162,11 +162,7 @@ body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-he
   <!-- Header -->
   <div class="header">
     <div class="header-left">
-      {% if empresa == 'maximize' %}
-        <img src="/static/logo-maxi-branca.png" alt="Maximize" style="height:30px">
-      {% else %}
-        <img src="/static/logo-phocus-branca.png" alt="Phocus Propaganda" style="height:30px">
-      {% endif %}
+      <img src="{{ logo_src }}" alt="{{ empresa }}" style="height:30px">
     </div>
     <div class="header-info">
       <div class="greeting">Olá, {{ nome }} ☀️</div>
