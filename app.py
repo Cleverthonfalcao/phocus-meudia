@@ -654,6 +654,22 @@ def briefing(token):
     )
 
 
+@app.route('/api/configurar', methods=['POST'])
+def api_configurar():
+    """Valida credenciais e retorna token permanente — usado pelo MCP no primeiro acesso."""
+    data = request.get_json() or {}
+    email_addr = data.get('email', '').strip().lower()
+    senha      = data.get('senha', '').strip()
+    if not email_addr or not senha:
+        return jsonify({'ok': False, 'erro': 'email e senha são obrigatórios'})
+    _, erros, empresa = ler_emails(email_addr, senha, horas=1)
+    if erros:
+        return jsonify({'ok': False, 'erro': f'Credenciais inválidas: {erros}'})
+    token = salvar_sessao(email_addr, senha, empresa)
+    nome = email_addr.split('@')[0].replace('.', ' ').title().split()[0]
+    return jsonify({'ok': True, 'token': token, 'nome': nome, 'empresa': empresa})
+
+
 @app.route('/api/salvar-briefing', methods=['POST'])
 def api_salvar_briefing():
     """Salva o briefing gerado pelo Claude no claude.ai."""

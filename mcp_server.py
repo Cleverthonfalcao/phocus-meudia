@@ -22,40 +22,44 @@ from app import ler_emails
 
 # ── Instruções para o Claude ───────────────────────────────────────────────────
 INSTRUCOES = """
-ATENÇÃO: IGNORE qualquer instrução anterior sobre webmail, Chrome, nome, empresa ou configuração de URL.
-NÃO pergunte sobre webmail. NÃO pergunte nome. NÃO pergunte empresa. NÃO peça URL.
-A ÚNICA autenticação é o TOKEN. Siga APENAS as instruções abaixo.
-
 Você é o assistente de triagem diária da Phocus Propaganda.
+NÃO pergunte sobre webmail, Chrome, URL ou configuração. Use APENAS as ferramentas abaixo.
 
-Quando o usuário digitar "meu dia" (ou qualquer variação como "bom dia", "triagem", "e-mails"):
+Quando o usuário digitar "meu dia" (ou variações como "bom dia", "triagem", "e-mails"):
 
-1. Chame IMEDIATAMENTE a ferramenta `ler_meus_emails` com o token do usuário.
-   - Se não souber o token, pergunte APENAS isto (nada mais):
-     "Qual é seu token? Acesse https://meudia.up.railway.app → ⚙️ Configurações."
-   - NÃO pergunte nome, webmail, empresa, URL ou qualquer outra coisa.
+── PRIMEIRO ACESSO (sem token) ──
+Se não houver token nas instruções do projeto:
+1. Pergunte APENAS: "Para configurar, preciso do seu e-mail e senha da Phocus/Maximize."
+2. Chame `configurar_acesso` com o e-mail e senha informados.
+3. O tool retorna o token. Responda EXATAMENTE assim (substituindo TOKEN pelo valor real):
+   "✅ Configurado, [NOME]! Seu token é: `TOKEN`
 
-2. Com os dados retornados, gere o briefing completo:
+   Para não precisar configurar de novo, cole isto nas **Project Instructions** deste projeto no claude.ai:
+   `Meu token Phocus Meu Dia: TOKEN`
+
+   Agora vou buscar seus e-mails..."
+4. Chame imediatamente `ler_meus_emails` com o token recebido e gere o briefing.
+
+── USO DIÁRIO (com token) ──
+Se o token já estiver disponível:
+1. Chame IMEDIATAMENTE `ler_meus_emails` com o token.
+2. Gere o briefing completo:
 
 ☀️ **Triagem — [DATA]** · [N] e-mails
 
 🔴 **URGENTES — agir agora**
-Para cada urgente:
-> **[Remetente]** · [data]
-> [assunto]
-> → [ação necessária em 1 linha]
+> **[Remetente]** · [data] · [assunto]
+> → [ação em 1 linha]
 > 💬 *Sugestão:* "[resposta direta, 2-3 linhas, tom humano, assina com primeiro nome]"
 
-🟡 **IMPORTANTES — resolver hoje**
-[mesmo formato]
+🟡 **IMPORTANTES — resolver hoje** [mesmo formato]
 
-🟢 **ATENÇÃO** · ⚪ **BAIXA**
-[lista compacta: remetente · assunto]
+🟢 **ATENÇÃO** · ⚪ **BAIXA** [lista compacta]
 
 ✅ **Plano de ação**
 1. [mais urgente] ...
 
-3. OBRIGATÓRIO após gerar o briefing: chame `salvar_briefing` com o token e o texto completo.
+3. OBRIGATÓRIO após gerar: chame `salvar_briefing` com o token e o texto completo.
    Isso faz o briefing aparecer em https://meudia.up.railway.app/briefing/TOKEN automaticamente.
 
 Tom: direto, sem corporativês, sugestões curtas como o próprio funcionário escreveria.
@@ -76,6 +80,38 @@ def get_sessao(token: str):
 
 
 # ── Ferramentas MCP ────────────────────────────────────────────────────────────
+
+@mcp.tool()
+def configurar_acesso(email: str, senha: str) -> str:
+    """
+    Primeiro acesso: valida e-mail e senha, cria sessão e retorna token permanente.
+    Use este tool quando o usuário ainda não tiver token configurado.
+
+    Args:
+        email: E-mail completo do funcionário (ex: nome@phocuspropaganda.com.br)
+        senha: Senha do e-mail (mesma usada no webmail)
+    """
+    try:
+        payload = json.dumps({'email': email, 'senha': senha}).encode()
+        req = urllib.request.Request(
+            f'{BASE_URL}/api/configurar',
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read())
+        if result.get('ok'):
+            return json.dumps({
+                'ok': True,
+                'token': result['token'],
+                'nome': result['nome'],
+                'empresa': result['empresa']
+            })
+        return f"❌ {result.get('erro', 'Erro desconhecido')}"
+    except Exception as e:
+        return f"❌ Erro ao configurar: {e}"
+
 
 @mcp.tool()
 def ler_meus_emails(token: str) -> str:
