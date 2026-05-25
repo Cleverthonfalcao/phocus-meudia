@@ -16,31 +16,19 @@ from fastmcp import FastMCP
 BASE_URL = os.environ.get('BASE_URL', 'https://meudia.up.railway.app')
 
 sys.path.insert(0, str(Path(__file__).parent))
-from app import ler_emails, get_sessao_por_token
+from app import ler_emails, get_sessao_por_token, salvar_briefing_ia
 
 mcp_token_ctx: ContextVar[str] = ContextVar('mcp_token', default='')
 
 mcp = FastMCP("Phocus Meu Dia", instructions=(
-    "Quando o usuário disser 'meu dia', siga SEMPRE estes passos na ordem:\n"
-    "1. Chame meu_dia (sem parâmetros) para buscar os e-mails\n"
-    "2. Gere um briefing completo com os e-mails recebidos e sugestões de resposta\n"
-    "3. Chame salvar_briefing passando o briefing completo como 'conteudo'\n"
-    "4. Apresente o briefing ao usuário\n"
-    "5. SEMPRE termine mostrando o link retornado por salvar_briefing assim: '📋 Ver página: [URL]'\n"
+    "Quando o usuário disser 'meu dia', chame imediatamente a ferramenta meu_dia. "
     "Não peça token, senha nem qualquer outra informação ao usuário."
 ))
 
 
-@mcp.tool()
-def meu_dia() -> str:
-    """
-    Retorna e-mails não lidos das últimas 18h classificados por prioridade.
-    Chame quando o usuário pedir 'meu dia', 'triagem' ou quiser ver e-mails.
-    Não requer parâmetros.
-    """
+def _get_token() -> str:
     token = mcp_token_ctx.get()
     if not token:
-        # Fallback: token mais recente registrado via SSE (funciona para uso individual)
         try:
             import time
             from combined import _token_by_ip
@@ -52,6 +40,17 @@ def meu_dia() -> str:
                 token = validos[0][0]
         except Exception:
             pass
+    return token
+
+
+@mcp.tool()
+def meu_dia() -> str:
+    """
+    Retorna e-mails não lidos das últimas 18h classificados por prioridade.
+    Chame quando o usuário pedir 'meu dia', 'triagem' ou quiser ver e-mails.
+    Não requer parâmetros. Já salva o briefing e retorna o link da página.
+    """
+    token = _get_token()
     if not token:
         return "Erro: reconecte o conector em https://meudia.up.railway.app/meu-token"
 
@@ -66,9 +65,15 @@ def meu_dia() -> str:
         return f"Erro ao acessar e-mails: {erros}"
 
     nome = usuario.split('@')[0].replace('.', ' ').title().split()[0]
+    pagina = f"{BASE_URL}/briefing/{token}"
 
     if not emails:
-        return f"Caixa em dia — nenhum e-mail não lido nas últimas 18h. Bom dia, {nome}!\n\n[TOKEN:{token} | {nome} | {empresa.upper()} | {BASE_URL}/briefing/{token}]"
+        conteudo = f"Caixa em dia — nenhum e-mail não lido nas últimas 18h. Bom dia, {nome}!"
+        salvar_briefing_ia(token, conteudo)
+        return (
+            f"{conteudo}\n\n"
+            f"📋 Página do dia: {pagina}"
+        )
 
     hoje = date.today().strftime('%d/%m/%Y')
     linhas = [f"TRIAGEM — {hoje} — {nome} ({empresa.upper()})", f"Total: {len(emails)} e-mail(s)\n"]
@@ -92,20 +97,27 @@ def meu_dia() -> str:
                 linhas.append(f"Prévia: {e['corpo'][:300]}{'...' if len(e['corpo'])>300 else ''}")
             linhas.append("")
 
-    linhas.append(f"\n[TOKEN:{token} | {nome} | {empresa.upper()} | {BASE_URL}/briefing/{token}]")
-    return '\n'.join(linhas)
+    resultado = '\n'.join(linhas)
+
+    # Salva briefing automaticamente — não depende do Claude chamar salvar_briefing
+    salvar_briefing_ia(token, resultado)
+
+    return (
+        resultado +
+        f"\n\n📋 Página do dia: {pagina}"
+    )
 
 
 @mcp.tool()
 def salvar_briefing(conteudo: str) -> str:
     """
     Salva o briefing gerado na página web do usuário.
-    Chame SEMPRE após gerar o briefing.
+    Chame após gerar sugestões de resposta para enriquecer a página.
 
     Args:
         conteudo: Texto completo do briefing com sugestões de resposta
     """
-    token = mcp_token_ctx.get()
+    token = _get_token()
     if not token:
         return "Erro: token ausente."
     try:
