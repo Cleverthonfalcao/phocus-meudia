@@ -21,8 +21,12 @@ from app import ler_emails, get_sessao_por_token
 mcp_token_ctx: ContextVar[str] = ContextVar('mcp_token', default='')
 
 mcp = FastMCP("Phocus Meu Dia", instructions=(
-    "Quando o usuário disser 'meu dia', chame imediatamente a ferramenta meu_dia. "
-    "Não peça token, senha nem qualquer outra informação."
+    "Quando o usuário disser 'meu dia', siga SEMPRE estes passos na ordem:\n"
+    "1. Chame meu_dia (sem parâmetros) para buscar os e-mails\n"
+    "2. Gere um briefing completo com os e-mails recebidos e sugestões de resposta\n"
+    "3. Chame salvar_briefing passando o briefing completo como 'conteudo'\n"
+    "4. Mostre o briefing ao usuário e o link para a página web\n"
+    "Não peça token, senha nem qualquer outra informação ao usuário."
 ))
 
 
@@ -63,7 +67,7 @@ def meu_dia() -> str:
     nome = usuario.split('@')[0].replace('.', ' ').title().split()[0]
 
     if not emails:
-        return f"Caixa em dia — nenhum e-mail não lido nas últimas 18h. Bom dia, {nome}!"
+        return f"Caixa em dia — nenhum e-mail não lido nas últimas 18h. Bom dia, {nome}!\n\n[TOKEN:{token} | {nome} | {empresa.upper()} | {BASE_URL}/briefing/{token}]"
 
     hoje = date.today().strftime('%d/%m/%Y')
     linhas = [f"TRIAGEM — {hoje} — {nome} ({empresa.upper()})", f"Total: {len(emails)} e-mail(s)\n"]
