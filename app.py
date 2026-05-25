@@ -521,7 +521,7 @@ hr.div{{border:none;border-top:.5px solid #E8E8E8;margin:.75rem 0}}
 <body>
 <div class="wrap">
   <div class="header">
-    <div class="logo">Phocus Propaganda</div>
+    <img src="/static/logo-phocus-branca.png" alt="Phocus Propaganda" style="height:28px;margin-bottom:.75rem;display:block">
     <h1>☀️ Triagem — {hoje}</h1>
     <div class="header-sub">{total} e-mail{"s" if total!=1 else ""} não lido{"s" if total!=1 else ""} nas últimas 18h · {nome}</div>
     <div class="badges">
