@@ -411,6 +411,17 @@ def meu_dia():
     )
 
 
+@app.route('/mcp-url')
+@login_required
+def mcp_url():
+    """Retorna a URL personalizada do MCP para o usuário logado."""
+    token = session.get('token') or salvar_sessao(session['email'], session['senha'],
+                                                   session.get('empresa', 'phocus'))
+    base = os.environ.get('BASE_URL', 'https://meudia.up.railway.app')
+    url  = f"{base}/mcp/{token}"
+    return jsonify({'mcp_url': url, 'sse_url': f"{url}/sse"})
+
+
 @app.route('/api/resolver', methods=['POST'])
 @login_required
 def api_resolver():
