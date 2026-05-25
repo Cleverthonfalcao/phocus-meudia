@@ -410,6 +410,21 @@ def atualizar():
 
 # ── Briefing ao vivo (para MCP / Claude) ──────────────────────────────────────
 
+TEMA = {
+    'phocus': {
+        'bg_header':  '#191818',
+        'cor_acento': '#B0A2F9',
+        'logo_src':   '/static/logo-phocus-branca.png',
+        'logo_alt':   'Phocus Propaganda',
+    },
+    'maximize': {
+        'bg_header':  '#1A1A2E',
+        'cor_acento': '#4A6FE3',
+        'logo_src':   '/static/logo-maxi-branca.png',
+        'logo_alt':   'Maximize',
+    },
+}
+
 def gerar_html_briefing(emails: list, usuario: str, empresa: str) -> str:
     """Página HTML completa com triagem ao vivo — retornada diretamente pelo Flask."""
     meses = {1:'janeiro',2:'fevereiro',3:'março',4:'abril',5:'maio',6:'junho',
@@ -418,6 +433,8 @@ def gerar_html_briefing(emails: list, usuario: str, empresa: str) -> str:
     hoje  = f"{agora.day} de {meses[agora.month]} de {agora.year}"
     hora  = agora.strftime('%H:%M')
     nome  = usuario.split('@')[0].replace('.', ' ').title().split()[0]
+
+    tema = TEMA.get(empresa, TEMA['phocus'])
 
     urgentes    = [e for e in emails if e['prioridade'] == 'urgente']
     importantes = [e for e in emails if e['prioridade'] == 'importante']
@@ -478,7 +495,7 @@ def gerar_html_briefing(emails: list, usuario: str, empresa: str) -> str:
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F2F2F2;color:#191818;min-height:100vh}}
 .wrap{{max-width:680px;margin:0 auto;padding:1.5rem 1rem 3rem}}
-.header{{background:#191818;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1rem;color:#fff}}
+.header{{border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1rem;color:#fff}}
 .logo{{font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:.5rem}}
 .header h1{{font-size:1.1rem;font-weight:600;margin-bottom:.25rem}}
 .header-sub{{font-size:.8rem;opacity:.6}}
@@ -515,13 +532,13 @@ hr.div{{border:none;border-top:.5px solid #E8E8E8;margin:.75rem 0}}
 .num{{width:20px;height:20px;border-radius:50%;background:#F2F2F2;border:.5px solid #DDD;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:600;flex-shrink:0;color:#888}}
 .empty{{text-align:center;padding:3rem 1rem;background:#fff;border-radius:12px}}
 .footer{{text-align:center;font-size:.7rem;color:#BBB;margin-top:1.5rem}}
-.footer a{{color:#B0A2F9;text-decoration:none}}
+.footer a{{color:{tema['cor_acento']};text-decoration:none}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="header">
-    <img src="/static/logo-phocus-branca.png" alt="Phocus Propaganda" style="height:28px;margin-bottom:.75rem;display:block">
+  <div class="header" style="background:{tema['bg_header']}">
+    <img src="{tema['logo_src']}" alt="{tema['logo_alt']}" style="height:28px;margin-bottom:.75rem;display:block">
     <h1>☀️ Triagem — {hoje}</h1>
     <div class="header-sub">{total} e-mail{"s" if total!=1 else ""} não lido{"s" if total!=1 else ""} nas últimas 18h · {nome}</div>
     <div class="badges">
