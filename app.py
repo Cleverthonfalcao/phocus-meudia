@@ -667,32 +667,57 @@ def meu_token():
                 erro = erros
             else:
                 token = salvar_sessao(email_addr, senha, empresa)
+    url_conector = f'https://meudia.up.railway.app/mcp/{token}/sse' if token else ''
     return f'''<!DOCTYPE html>
 <html lang="pt-BR">
-<head><meta charset="UTF-8"><title>Meu Token MCP</title>
-<style>body{{font-family:sans-serif;max-width:480px;margin:4rem auto;padding:1rem;color:#191818}}
-h2{{margin-bottom:1.5rem}}label{{display:block;margin-bottom:.25rem;font-size:.875rem;font-weight:500}}
-input{{width:100%;padding:.6rem .75rem;border:1px solid #CCC;border-radius:6px;font-size:.9rem;margin-bottom:1rem;box-sizing:border-box}}
-button{{background:#B0A2F9;color:#191818;border:none;padding:.7rem 1.5rem;border-radius:6px;font-weight:600;cursor:pointer;font-size:.9rem}}
-.token-box{{background:#F5F5F5;border:1px solid #DDD;border-radius:8px;padding:1rem;margin-top:1.5rem;word-break:break-all}}
-.token-box small{{display:block;margin-bottom:.5rem;color:#888;font-size:.75rem}}
-.token-box code{{font-size:.85rem;font-weight:600;color:#191818}}
-.url-box{{background:#191818;color:#B0A2F9;border-radius:8px;padding:1rem;margin-top:.75rem;word-break:break-all;font-size:.8rem;font-family:monospace}}
-.erro{{color:#c00;font-size:.875rem;margin-bottom:.75rem}}</style>
+<head><meta charset="UTF-8"><title>Minha URL do Conector</title>
+<style>
+*{{box-sizing:border-box}}
+body{{font-family:sans-serif;max-width:520px;margin:4rem auto;padding:1rem;color:#191818}}
+h2{{margin-bottom:.5rem}}
+.sub{{color:#888;font-size:.875rem;margin-bottom:1.5rem}}
+label{{display:block;margin-bottom:.25rem;font-size:.875rem;font-weight:500}}
+input{{width:100%;padding:.6rem .75rem;border:1px solid #CCC;border-radius:6px;font-size:.9rem;margin-bottom:1rem}}
+.btn-primary{{background:#B0A2F9;color:#191818;border:none;padding:.7rem 1.5rem;border-radius:6px;font-weight:600;cursor:pointer;font-size:.9rem}}
+.url-card{{background:#191818;border-radius:12px;padding:1.25rem;margin-top:1.5rem}}
+.url-card .label{{color:#888;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem}}
+.url-card .url-text{{color:#B0A2F9;font-family:monospace;font-size:.82rem;word-break:break-all;line-height:1.5}}
+.copy-btn{{display:block;width:100%;margin-top:1rem;background:#B0A2F9;color:#191818;border:none;border-radius:8px;padding:.65rem;font-weight:700;font-size:.9rem;cursor:pointer;transition:opacity .15s}}
+.copy-btn:hover{{opacity:.85}}
+.copy-btn.copied{{background:#45B577;color:#fff}}
+.hint{{margin-top:1rem;font-size:.78rem;color:#888;line-height:1.6}}
+.hint a{{color:#B0A2F9}}
+.erro{{color:#c00;font-size:.875rem;margin-bottom:.75rem}}
+</style>
 </head><body>
-<h2>🔑 Token do conector MCP</h2>
+<h2>☀️ Minha URL do conector</h2>
+<p class="sub">Cole essa URL no claude.ai para ativar o <strong>Meu Dia</strong></p>
 {"" if not erro else f'<p class="erro">❌ {erro}</p>'}
 {"" if token else f"""<form method="POST">
 <label>E-mail</label><input name="email" type="email" placeholder="nome@phocuspropaganda.com.br" required>
 <label>Senha</label><input name="senha" type="password" required>
-<button type="submit">Ver meu token</button>
+<button class="btn-primary" type="submit">Gerar minha URL</button>
 </form>"""}
-{"" if not token else f"""<div class="token-box">
-<small>Seu token:</small>
-<code>{token}</code>
+{"" if not token else f"""<div class="url-card">
+  <div class="label">URL do conector MCP — copie e cole no claude.ai</div>
+  <div class="url-text" id="url-text">{url_conector}</div>
+  <button class="copy-btn" id="copy-btn" onclick="copyUrl()">📋 Copiar URL</button>
 </div>
-<div class="url-box">https://meudia.up.railway.app/mcp/{token}/sse</div>
-<p style="margin-top:1rem;font-size:.8rem;color:#888">Cole essa URL no campo do conector MCP no claude.ai</p>"""}
+<p class="hint">
+  No claude.ai: <strong>Settings → Integrations → Add integration</strong><br>
+  Cole essa URL no campo e salve com o nome <strong>Phocus Meu Dia</strong> ou <strong>Maximize Meu Dia</strong>.<br><br>
+  <a href="/como-conectar">Ver passo a passo completo →</a>
+</p>
+<script>
+function copyUrl() {{
+  navigator.clipboard.writeText('{url_conector}').then(() => {{
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✅ Copiado!';
+    btn.classList.add('copied');
+    setTimeout(() => {{ btn.textContent = '📋 Copiar URL'; btn.classList.remove('copied'); }}, 2000);
+  }});
+}}
+</script>"""}
 </body></html>'''
 
 
