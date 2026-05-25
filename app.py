@@ -696,6 +696,185 @@ button{{background:#B0A2F9;color:#191818;border:none;padding:.7rem 1.5rem;border
 </body></html>'''
 
 
+@app.route('/como-conectar')
+def como_conectar():
+    return '''<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Como conectar — Phocus Meu Dia</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F2F2F2;color:#191818;min-height:100vh}
+.wrap{max-width:680px;margin:0 auto;padding:2rem 1rem 4rem}
+.header{background:#191818;border-radius:12px;padding:1.5rem;margin-bottom:1.5rem;color:#fff}
+.logo{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;opacity:.4;margin-bottom:.5rem}
+.header h1{font-size:1.2rem;font-weight:700;margin-bottom:.25rem}
+.header p{font-size:.85rem;opacity:.6}
+.card{background:#fff;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:.75rem;border:.5px solid #E8E8E8}
+.step-num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#B0A2F9;color:#191818;font-size:.8rem;font-weight:700;flex-shrink:0}
+.step-header{display:flex;align-items:center;gap:.75rem;margin-bottom:.9rem}
+.step-title{font-size:.95rem;font-weight:600}
+.step-sub{font-size:.8rem;color:#888;margin-top:.1rem}
+.instruction{font-size:.875rem;line-height:1.6;color:#333;margin-bottom:.6rem}
+.instruction b{color:#191818}
+.url-demo{background:#191818;color:#B0A2F9;border-radius:8px;padding:.75rem 1rem;font-family:monospace;font-size:.78rem;word-break:break-all;margin:.75rem 0;line-height:1.6}
+.url-demo .dim{opacity:.45}
+.url-demo .token{color:#fff;font-weight:600}
+.tag{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:10px;margin-right:.35rem;margin-bottom:.35rem}
+.tag-phocus{background:#EDE9FF;color:#5B3ECC}
+.tag-maxi{background:#E6EEFF;color:#1A4FCC}
+.name-row{display:flex;gap:.75rem;flex-wrap:wrap;margin:.5rem 0}
+.name-chip{border:1.5px solid #E0E0E0;border-radius:8px;padding:.5rem .9rem;font-size:.85rem;font-weight:500;cursor:pointer;transition:border-color .15s}
+.name-chip:hover{border-color:#B0A2F9}
+.name-chip .sub{font-size:.7rem;color:#888;display:block;margin-top:.1rem}
+.screenshot-box{background:#F7F7F7;border:.5px solid #E0E0E0;border-radius:10px;padding:1rem;margin:.75rem 0}
+.screen-bar{display:flex;align-items:center;gap:.4rem;margin-bottom:.6rem}
+.screen-dot{width:8px;height:8px;border-radius:50%;background:#DDD}
+.screen-url{font-size:.7rem;color:#AAA;background:#fff;border:.5px solid #E0E0E0;border-radius:4px;padding:2px 8px;flex:1}
+.screen-content{font-size:.8rem;color:#555;line-height:1.6}
+.screen-field{background:#fff;border:.5px solid #CCC;border-radius:6px;padding:.4rem .6rem;margin:.3rem 0;font-size:.78rem;color:#888;display:flex;justify-content:space-between;align-items:center}
+.screen-field b{color:#191818}
+.screen-btn{background:#B0A2F9;color:#191818;border:none;border-radius:6px;padding:.5rem 1rem;font-size:.78rem;font-weight:600;margin-top:.5rem;cursor:pointer;display:inline-block}
+.arrow{text-align:center;color:#CCC;font-size:1.2rem;margin:.25rem 0}
+.tip{background:#FFFBEB;border:.5px solid #FDE68A;border-radius:8px;padding:.6rem .9rem;font-size:.8rem;color:#854F0B;margin-top:.75rem}
+.tip b{color:#6B3F08}
+.final{background:#191818;border-radius:12px;padding:1.25rem 1.5rem;color:#fff;margin-top:1rem;text-align:center}
+.final p{font-size:.875rem;opacity:.7;margin-top:.4rem}
+.link{color:#B0A2F9;text-decoration:none;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="logo">Phocus Propaganda · Maximize</div>
+    <h1>☀️ Como conectar o Meu Dia</h1>
+    <p>Triagem de e-mails direto no claude.ai — configuração em 3 passos</p>
+  </div>
+
+  <!-- PASSO 1 -->
+  <div class="card">
+    <div class="step-header">
+      <div class="step-num">1</div>
+      <div>
+        <div class="step-title">Gere sua URL personalizada</div>
+        <div class="step-sub">Cada pessoa tem uma URL única com seu token</div>
+      </div>
+    </div>
+
+    <p class="instruction">Acesse a página abaixo e faça login com seu <b>e-mail e senha do webmail</b>:</p>
+
+    <div class="url-demo">
+      <a href="https://meudia.up.railway.app/meu-token" class="link" style="color:#B0A2F9">
+        https://meudia.up.railway.app/meu-token
+      </a>
+    </div>
+
+    <div class="screenshot-box">
+      <div class="screen-bar">
+        <div class="screen-dot"></div><div class="screen-dot"></div><div class="screen-dot"></div>
+        <div class="screen-url">meudia.up.railway.app/meu-token</div>
+      </div>
+      <div class="screen-field">E-mail <b>nome@phocuspropaganda.com.br</b></div>
+      <div class="screen-field">Senha <b>••••••••</b></div>
+      <div class="screen-btn">Ver meu token</div>
+    </div>
+
+    <p class="instruction" style="margin-top:.5rem">A URL do conector aparece no fundo da página com destaque roxo:</p>
+    <div class="url-demo">
+      https://meudia.up.railway.app/mcp/<span class="token">SEU_TOKEN_AQUI</span>/sse
+    </div>
+    <p class="instruction" style="color:#888;font-size:.78rem">Copie essa URL completa.</p>
+  </div>
+
+  <!-- PASSO 2 -->
+  <div class="card">
+    <div class="step-header">
+      <div class="step-num">2</div>
+      <div>
+        <div class="step-title">Adicione o conector no claude.ai</div>
+        <div class="step-sub">Settings → Integrations → Add integration</div>
+      </div>
+    </div>
+
+    <p class="instruction">No <b>claude.ai</b>, clique no seu avatar → <b>Settings</b> → <b>Integrations</b></p>
+
+    <div class="screenshot-box">
+      <div class="screen-bar">
+        <div class="screen-dot"></div><div class="screen-dot"></div><div class="screen-dot"></div>
+        <div class="screen-url">claude.ai/settings/integrations</div>
+      </div>
+      <div class="screen-content">
+        <div style="font-size:.75rem;color:#888;margin-bottom:.5rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Integrations</div>
+        <div class="screen-field" style="margin-bottom:.5rem">
+          Nome do conector
+          <b>Phocus Meu Dia</b>
+        </div>
+        <div class="screen-field">
+          URL do servidor MCP
+          <b style="color:#5B3ECC;font-size:.72rem">https://meudia.up.railway.app/mcp/TOKEN/sse</b>
+        </div>
+        <div class="screen-btn" style="margin-top:.6rem">Salvar</div>
+      </div>
+    </div>
+
+    <p class="instruction" style="margin-top:.75rem">Sugestão de nome por marca:</p>
+    <div class="name-row">
+      <div class="name-chip">
+        <span class="tag tag-phocus">Phocus</span>
+        <b>Phocus Meu Dia</b>
+        <span class="sub">para @phocuspropaganda.com.br</span>
+      </div>
+      <div class="name-chip">
+        <span class="tag tag-maxi">Maximize</span>
+        <b>Maximize Meu Dia</b>
+        <span class="sub">para e-mails @maximize</span>
+      </div>
+    </div>
+
+    <div class="tip">
+      <b>Atenção:</b> Cole a URL completa incluindo o token — ela termina em <code>/sse</code>
+    </div>
+  </div>
+
+  <!-- PASSO 3 -->
+  <div class="card">
+    <div class="step-header">
+      <div class="step-num">3</div>
+      <div>
+        <div class="step-title">Use no chat</div>
+        <div class="step-sub">Qualquer conversa nova no claude.ai</div>
+      </div>
+    </div>
+
+    <p class="instruction">Abra um <b>chat novo</b> e escreva:</p>
+
+    <div class="url-demo" style="font-size:1rem;text-align:center;padding:1rem;letter-spacing:.02em">
+      meu dia
+    </div>
+
+    <p class="instruction" style="margin-top:.6rem">O Claude vai buscar seus e-mails, gerar o briefing e retornar o link da sua página visual.</p>
+
+    <div class="tip">
+      <b>Precisa reconectar?</b> Vá em Settings → Integrations → clique no conector → Desconectar → Reconectar. Isso é necessário depois de atualizações do servidor.
+    </div>
+  </div>
+
+  <div class="final">
+    <div style="font-size:1.1rem;font-weight:700;margin-bottom:.4rem">✅ Pronto</div>
+    <p>Cada pessoa tem sua própria URL com token · Dados separados · Sem custo extra de IA</p>
+    <p style="margin-top:.75rem">
+      <a href="/meu-token" class="link">→ Ir para /meu-token e pegar minha URL</a>
+    </p>
+  </div>
+
+</div>
+</body>
+</html>'''
+
+
 @app.route('/debug/mcp')
 def debug_mcp():
     try:
