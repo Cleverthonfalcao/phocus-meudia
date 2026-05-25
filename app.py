@@ -410,17 +410,24 @@ def atualizar():
 
 # ── Briefing ao vivo (para MCP / Claude) ──────────────────────────────────────
 
+def _logo_b64(filename):
+    import base64
+    p = Path(__file__).parent / 'static' / filename
+    if p.exists():
+        return 'data:image/png;base64,' + base64.b64encode(p.read_bytes()).decode()
+    return ''
+
 TEMA = {
     'phocus': {
         'bg_header':  '#191818',
         'cor_acento': '#B0A2F9',
-        'logo_src':   '/static/logo-phocus-branca.png',
+        'logo_src':   _logo_b64('logo-phocus-branca.png'),
         'logo_alt':   'Phocus Propaganda',
     },
     'maximize': {
         'bg_header':  '#1A1A2E',
         'cor_acento': '#4A6FE3',
-        'logo_src':   '/static/logo-maxi-branca.png',
+        'logo_src':   _logo_b64('logo-maxi-branca.png'),
         'logo_alt':   'Maximize',
     },
 }
