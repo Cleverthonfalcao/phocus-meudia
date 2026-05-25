@@ -35,7 +35,20 @@ def meu_dia() -> str:
     """
     token = mcp_token_ctx.get()
     if not token:
-        return "Erro: reconecte o conector usando https://meudia.up.railway.app/mcp/SEU_TOKEN/sse"
+        # Fallback: token mais recente registrado via SSE (funciona para uso individual)
+        try:
+            import time
+            from combined import _token_by_ip
+            validos = sorted(
+                [(t, ts) for t, ts in _token_by_ip.values() if time.time() - ts < 7200],
+                key=lambda x: x[1], reverse=True
+            )
+            if validos:
+                token = validos[0][0]
+        except Exception:
+            pass
+    if not token:
+        return "Erro: reconecte o conector em https://meudia.up.railway.app/meu-token"
 
     sessao = get_sessao_por_token(token)
     if not sessao:
