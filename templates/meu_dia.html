@@ -162,12 +162,11 @@ body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-he
   <!-- Header -->
   <div class="header">
     <div class="header-left">
-      <svg viewBox="0 0 380 100" width="100" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="28" cy="30" r="22" fill="#F9F9F9"/>
-        <rect x="16" y="42" width="14" height="52" rx="7" fill="#F9F9F9"/>
-        <text x="56" y="83" font-family="'Montserrat','Arial Rounded MT Bold',sans-serif"
-              font-weight="900" font-size="62" fill="#F9F9F9" letter-spacing="-1">hocus</text>
-      </svg>
+      {% if empresa == 'maximize' %}
+        <img src="/static/logo-maxi-branca.png" alt="Maximize" style="height:30px">
+      {% else %}
+        <img src="/static/logo-phocus-branca.png" alt="Phocus Propaganda" style="height:30px">
+      {% endif %}
     </div>
     <div class="header-info">
       <div class="greeting">Olá, {{ nome }} ☀️</div>
