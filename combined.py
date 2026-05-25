@@ -59,14 +59,15 @@ class TokenMiddleware:
             scope = {**scope, 'path': '/mcp/sse', 'raw_path': b'/mcp/sse'}
 
             async def capture_send(message):
-                if message.get('type') == 'http.response.body':
-                    body = message.get('body', b'').decode('utf-8', errors='replace')
-                    # Captura qualquer variação do endpoint SSE
+                # Loga TUDO para debug — independente do tipo
+                msg_type = message.get('type', '?')
+                body_raw = message.get('body', b'')
+                body = body_raw.decode('utf-8', errors='replace') if isinstance(body_raw, bytes) else str(body_raw)
+                _last_sse_body[token] = f"type={msg_type} | {body[:400]}"
+                if msg_type == 'http.response.body' and body:
                     sid = re.search(r'data:\s*\S*/messages/([^\n\r\s?]+)', body)
                     if sid:
                         _sessions[sid.group(1).strip()] = token
-                    # Fallback: body inteiro para debug
-                    _last_sse_body[token] = body[:500]
                 await send(message)
 
             await self.app(scope, receive, capture_send)
