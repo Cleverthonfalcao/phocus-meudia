@@ -1,6 +1,7 @@
 """
 Phocus Meu Dia — Triagem diária de e-mails
 Standalone Flask app · Locaweb (Phocus) + GoDaddy (Maximize)
+Banco: PostgreSQL (produção Railway) | SQLite (desenvolvimento local)
 """
 
 import imaplib
@@ -25,59 +26,129 @@ def no_cache(r):
     r.headers['Pragma'] = 'no-cache'
     return r
 
-# ── Banco de dados ─────────────────────────────────────────────────────────────
 
-DB_PATH = Path(__file__).parent / 'meudia.db'
+# ── Camada de banco de dados (Postgres ou SQLite) ──────────────────────────────
 
-def init_db():
-    con = sqlite3.connect(DB_PATH)
-    con.execute('''CREATE TABLE IF NOT EXISTS resolvidos (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        usuario     TEXT NOT NULL,
-        message_id  TEXT NOT NULL,
-        resolvido_em TEXT NOT NULL,
-        UNIQUE(usuario, message_id)
-    )''')
-    con.execute('''CREATE TABLE IF NOT EXISTS sessoes (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        usuario     TEXT NOT NULL UNIQUE,
-        senha       TEXT NOT NULL,
-        empresa     TEXT NOT NULL,
-        token       TEXT NOT NULL UNIQUE,
-        criado_em   TEXT NOT NULL
-    )''')
+DATABASE_URL = os.environ.get('DATABASE_URL')  # Railway define automaticamente
+DB_PATH      = Path(__file__).parent / 'meudia.db'
+
+def _conn():
+    """Retorna conexão ativa para o banco configurado."""
+    if DATABASE_URL:
+        import psycopg2
+        return psycopg2.connect(DATABASE_URL)
+    return sqlite3.connect(str(DB_PATH))
+
+def _ph(n=1):
+    """Placeholder SQL: %s (Postgres) ou ? (SQLite)."""
+    p = '%s' if DATABASE_URL else '?'
+    return ', '.join([p] * n) if n > 1 else p
+
+def db_execute(sql, params=(), fetchall=False, fetchone=False):
+    con = _conn()
+    cur = con.cursor()
+    cur.execute(sql, params)
+    result = None
+    if fetchall:
+        result = cur.fetchall()
+    elif fetchone:
+        result = cur.fetchone()
     con.commit()
     con.close()
+    return result
+
+
+def init_db():
+    if DATABASE_URL:
+        db_execute('''CREATE TABLE IF NOT EXISTS resolvidos (
+            id           SERIAL PRIMARY KEY,
+            usuario      TEXT NOT NULL,
+            message_id   TEXT NOT NULL,
+            resolvido_em TEXT NOT NULL,
+            UNIQUE(usuario, message_id)
+        )''')
+        db_execute('''CREATE TABLE IF NOT EXISTS sessoes (
+            id        SERIAL PRIMARY KEY,
+            usuario   TEXT NOT NULL UNIQUE,
+            senha     TEXT NOT NULL,
+            empresa   TEXT NOT NULL,
+            token     TEXT NOT NULL UNIQUE,
+            criado_em TEXT NOT NULL
+        )''')
+    else:
+        db_execute('''CREATE TABLE IF NOT EXISTS resolvidos (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario      TEXT NOT NULL,
+            message_id   TEXT NOT NULL,
+            resolvido_em TEXT NOT NULL,
+            UNIQUE(usuario, message_id)
+        )''')
+        db_execute('''CREATE TABLE IF NOT EXISTS sessoes (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario   TEXT NOT NULL UNIQUE,
+            senha     TEXT NOT NULL,
+            empresa   TEXT NOT NULL,
+            token     TEXT NOT NULL UNIQUE,
+            criado_em TEXT NOT NULL
+        )''')
+
+init_db()
+
 
 def gerar_token():
     import secrets
     return secrets.token_urlsafe(32)
 
 def salvar_sessao(email_addr, senha, empresa):
-    con = sqlite3.connect(DB_PATH)
-    row = con.execute('SELECT token FROM sessoes WHERE usuario=?', (email_addr,)).fetchone()
+    row = db_execute(
+        f'SELECT token FROM sessoes WHERE usuario={_ph()}',
+        (email_addr,), fetchone=True
+    )
     if row:
         token = row[0]
-        con.execute('UPDATE sessoes SET senha=?, empresa=? WHERE usuario=?', (senha, empresa, email_addr))
+        db_execute(
+            f'UPDATE sessoes SET senha={_ph()}, empresa={_ph()} WHERE usuario={_ph()}',
+            (senha, empresa, email_addr)
+        )
     else:
         token = gerar_token()
-        con.execute(
-            'INSERT INTO sessoes (usuario, senha, empresa, token, criado_em) VALUES (?,?,?,?,?)',
+        db_execute(
+            f'INSERT INTO sessoes (usuario, senha, empresa, token, criado_em) VALUES ({_ph(5)})',
             (email_addr, senha, empresa, token, datetime.now().isoformat())
         )
-    con.commit()
-    con.close()
     return token
 
 def get_sessao_por_token(token):
-    con = sqlite3.connect(DB_PATH)
-    row = con.execute(
-        'SELECT usuario, senha, empresa FROM sessoes WHERE token=?', (token,)
-    ).fetchone()
-    con.close()
-    return row  # (usuario, senha, empresa) ou None
+    return db_execute(
+        f'SELECT usuario, senha, empresa FROM sessoes WHERE token={_ph()}',
+        (token,), fetchone=True
+    )
 
-init_db()
+def get_resolvidos(usuario):
+    rows = db_execute(
+        f'SELECT message_id FROM resolvidos WHERE usuario={_ph()}',
+        (usuario,), fetchall=True
+    )
+    return {r[0] for r in rows} if rows else set()
+
+def resolver_email(usuario, message_id):
+    if DATABASE_URL:
+        db_execute(
+            f'INSERT INTO resolvidos (usuario, message_id, resolvido_em) VALUES ({_ph(3)}) ON CONFLICT DO NOTHING',
+            (usuario, message_id, datetime.now().isoformat())
+        )
+    else:
+        db_execute(
+            f'INSERT OR IGNORE INTO resolvidos (usuario, message_id, resolvido_em) VALUES ({_ph(3)})',
+            (usuario, message_id, datetime.now().isoformat())
+        )
+
+def desmarcar_email(usuario, message_id):
+    db_execute(
+        f'DELETE FROM resolvidos WHERE usuario={_ph()} AND message_id={_ph()}',
+        (usuario, message_id)
+    )
+
 
 # ── Configuração IMAP por domínio ──────────────────────────────────────────────
 
@@ -87,7 +158,7 @@ IMAP_CONFIG = {
         'port': 993,
         'empresa': 'phocus',
     },
-    'maximize': {  # fallback para domínios Maximize
+    'maximize': {
         'host': 'imap.secureserver.net',
         'port': 993,
         'empresa': 'maximize',
@@ -98,7 +169,6 @@ def get_imap_config(email_addr):
     domain = email_addr.split('@')[-1].lower()
     if domain in IMAP_CONFIG:
         return IMAP_CONFIG[domain]
-    # GoDaddy para outros domínios (Maximize)
     return IMAP_CONFIG['maximize']
 
 
@@ -124,22 +194,18 @@ def classificar(assunto, remetente, corpo=''):
     r = remetente.lower()
     c = (corpo or '').lower()
 
-    # Baixa primeiro (automáticos)
     for b in BAIXA_SENDERS:
         if b in r:
             return 'baixa'
 
-    # Urgente
     for k in URGENTE_KEYWORDS:
         if k in s or k in c:
             return 'urgente'
 
-    # Importante
     for k in IMPORTANTE_KEYWORDS:
         if k in s:
             return 'importante'
 
-    # Atenção (e-mails de pessoas reais sem marcadores claros)
     if '@' in remetente and 'noreply' not in r and 'no-reply' not in r:
         return 'atencao'
 
@@ -166,14 +232,11 @@ def ler_emails(email_addr, senha, horas=18):
             _, dados = mail.fetch(eid, '(BODY.PEEK[])')
             msg = email.message_from_bytes(dados[0][1])
 
-            # Assunto
             raw, enc = decode_header(msg['Subject'] or '')[0]
             assunto = raw.decode(enc or 'utf-8', errors='replace') if isinstance(raw, bytes) else (raw or '')
 
-            # Remetente
             remetente = msg.get('From', '')
 
-            # Corpo (plain text, primeiros 400 chars)
             corpo = ''
             if msg.is_multipart():
                 for part in msg.walk():
@@ -189,7 +252,6 @@ def ler_emails(email_addr, senha, horas=18):
                 except Exception:
                     pass
 
-            # Data
             data_str = msg.get('Date', '')
             try:
                 from email.utils import parsedate_to_datetime
@@ -217,7 +279,6 @@ def ler_emails(email_addr, senha, horas=18):
     except Exception as e:
         erros = f'Erro ao conectar: {e}'
 
-    # Ordenar por prioridade
     ordem = {'urgente': 0, 'importante': 1, 'atencao': 2, 'baixa': 3}
     emails.sort(key=lambda x: ordem.get(x['prioridade'], 4))
 
@@ -253,7 +314,6 @@ def login():
         if not email_addr or not senha:
             erro = 'Preencha e-mail e senha.'
         else:
-            # Valida conectando no IMAP
             _, erros, empresa = ler_emails(email_addr, senha, horas=1)
             if erros:
                 erro = erros
@@ -283,10 +343,10 @@ def meu_dia():
         session['email'], session['senha'], horas=18
     )
     contadores = {
-        'urgente':   sum(1 for e in emails if e['prioridade'] == 'urgente'),
-        'importante':sum(1 for e in emails if e['prioridade'] == 'importante'),
-        'atencao':   sum(1 for e in emails if e['prioridade'] == 'atencao'),
-        'baixa':     sum(1 for e in emails if e['prioridade'] == 'baixa'),
+        'urgente':    sum(1 for e in emails if e['prioridade'] == 'urgente'),
+        'importante': sum(1 for e in emails if e['prioridade'] == 'importante'),
+        'atencao':    sum(1 for e in emails if e['prioridade'] == 'atencao'),
+        'baixa':      sum(1 for e in emails if e['prioridade'] == 'baixa'),
     }
     hoje = datetime.now().strftime('%A, %d de %B de %Y').capitalize()
     dias  = {'monday':'Segunda','tuesday':'Terça','wednesday':'Quarta',
@@ -298,19 +358,12 @@ def meu_dia():
     for en, pt in {**dias, **meses}.items():
         hoje = hoje.replace(en.capitalize(), pt.capitalize()).replace(en, pt)
 
-    # Garantir que a sessão tem token (retrocompatibilidade)
     if not session.get('token'):
         token = salvar_sessao(session['email'], session['senha'], empresa)
         session['token'] = token
         session.modified = True
 
-    # Buscar IDs já resolvidos por este usuário
-    con = sqlite3.connect(DB_PATH)
-    rows = con.execute(
-        'SELECT message_id FROM resolvidos WHERE usuario=?', (session['email'],)
-    ).fetchall()
-    con.close()
-    resolvidos = {r[0] for r in rows}
+    resolvidos = get_resolvidos(session['email'])
 
     return render_template('meu_dia.html',
         emails=emails,
@@ -329,37 +382,28 @@ def meu_dia():
 def api_resolver():
     data = request.get_json() or {}
     message_id = data.get('message_id', '').strip()
-    acao = data.get('acao', 'resolver')  # 'resolver' | 'desmarcar'
+    acao = data.get('acao', 'resolver')
 
     if not message_id:
         return jsonify({'ok': False, 'erro': 'message_id ausente'})
 
-    con = sqlite3.connect(DB_PATH)
     if acao == 'resolver':
-        con.execute(
-            'INSERT OR IGNORE INTO resolvidos (usuario, message_id, resolvido_em) VALUES (?,?,?)',
-            (session['email'], message_id, datetime.now().isoformat())
-        )
+        resolver_email(session['email'], message_id)
     else:
-        con.execute(
-            'DELETE FROM resolvidos WHERE usuario=? AND message_id=?',
-            (session['email'], message_id)
-        )
-    con.commit()
-    con.close()
+        desmarcar_email(session['email'], message_id)
+
     return jsonify({'ok': True})
 
 
 @app.route('/api/atualizar')
 @login_required
 def atualizar():
-    """Endpoint AJAX para refresh sem recarregar a página."""
     emails, erros, _ = ler_emails(session['email'], session['senha'], horas=18)
     contadores = {
-        'urgente':   sum(1 for e in emails if e['prioridade'] == 'urgente'),
-        'importante':sum(1 for e in emails if e['prioridade'] == 'importante'),
-        'atencao':   sum(1 for e in emails if e['prioridade'] == 'atencao'),
-        'baixa':     sum(1 for e in emails if e['prioridade'] == 'baixa'),
+        'urgente':    sum(1 for e in emails if e['prioridade'] == 'urgente'),
+        'importante': sum(1 for e in emails if e['prioridade'] == 'importante'),
+        'atencao':    sum(1 for e in emails if e['prioridade'] == 'atencao'),
+        'baixa':      sum(1 for e in emails if e['prioridade'] == 'baixa'),
     }
     return jsonify({'emails': emails, 'contadores': contadores, 'erros': erros})
 
@@ -405,7 +449,6 @@ def gerar_html_briefing(emails: list, usuario: str, empresa: str) -> str:
         op = 'opacity:.3' if n == 0 else ''
         return f'<span class="badge {cls}" style="{op}">{icon} {n}</span>'
 
-    # Plano de ação
     acoes = [f'Responder <b>{_esc(e.get("remetente","?").split("<")[0].strip())}</b> — {_esc(e.get("assunto","?"))}' for e in urgentes[:3]]
     acoes += [f'Tratar: {_esc(e.get("assunto","?"))}' for e in importantes[:2]]
     if not acoes:
@@ -502,7 +545,6 @@ hr.div{{border:none;border-top:.5px solid #E8E8E8;margin:.75rem 0}}
   <div class="footer">Auto-atualiza a cada 5 min · <a href="https://meudia.up.railway.app">Painel completo</a></div>
 </div>
 <script>
-  // Auto-refresh a cada 5 minutos
   setTimeout(function(){{ window.location.reload(); }}, 5 * 60 * 1000);
 </script>
 </body>
