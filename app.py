@@ -577,7 +577,7 @@ hr.div{{border:none;border-top:.5px solid #E8E8E8;margin:.75rem 0}}
 
 @app.route('/briefing/<token>')
 def briefing(token):
-    """Página de triagem ao vivo acessível via token (para Claude / MCP)."""
+    """Triagem ao vivo via token — usa o mesmo template do dashboard."""
     sessao = get_sessao_por_token(token)
     if not sessao:
         return '<p style="font-family:sans-serif;padding:2rem;color:#c00">❌ Token inválido ou expirado.<br>Acesse <a href="/login">meudia.up.railway.app</a> e faça login novamente.</p>', 403
@@ -585,10 +585,35 @@ def briefing(token):
     usuario, senha, empresa = sessao
     emails, erros, _ = ler_emails(usuario, senha, horas=18)
 
-    if erros:
-        return f'<p style="font-family:sans-serif;padding:2rem;color:#c00">❌ {erros}</p>', 500
+    contadores = {
+        'urgente':    sum(1 for e in emails if e['prioridade'] == 'urgente'),
+        'importante': sum(1 for e in emails if e['prioridade'] == 'importante'),
+        'atencao':    sum(1 for e in emails if e['prioridade'] == 'atencao'),
+        'baixa':      sum(1 for e in emails if e['prioridade'] == 'baixa'),
+    }
+    hoje = datetime.now().strftime('%A, %d de %B de %Y').capitalize()
+    dias  = {'monday':'Segunda','tuesday':'Terça','wednesday':'Quarta',
+             'thursday':'Quinta','friday':'Sexta','saturday':'Sábado','sunday':'Domingo'}
+    meses = {'january':'janeiro','february':'fevereiro','march':'março',
+             'april':'abril','may':'maio','june':'junho','july':'julho',
+             'august':'agosto','september':'setembro','october':'outubro',
+             'november':'novembro','december':'dezembro'}
+    for en, pt in {**dias, **meses}.items():
+        hoje = hoje.replace(en.capitalize(), pt.capitalize()).replace(en, pt)
 
-    return gerar_html_briefing(emails, usuario, empresa)
+    nome = usuario.split('@')[0].replace('.', ' ').title().split()[0]
+    resolvidos = get_resolvidos(usuario)
+
+    return render_template('meu_dia.html',
+        emails=emails,
+        contadores=contadores,
+        hoje=hoje,
+        nome=nome,
+        empresa=empresa,
+        erros=erros,
+        resolvidos=resolvidos,
+        token=token,
+    )
 
 
 if __name__ == '__main__':
