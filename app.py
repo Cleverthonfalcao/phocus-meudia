@@ -364,6 +364,167 @@ def atualizar():
     return jsonify({'emails': emails, 'contadores': contadores, 'erros': erros})
 
 
+# ── Briefing ao vivo (para MCP / Claude) ──────────────────────────────────────
+
+def gerar_html_briefing(emails: list, usuario: str, empresa: str) -> str:
+    """Página HTML completa com triagem ao vivo — retornada diretamente pelo Flask."""
+    meses = {1:'janeiro',2:'fevereiro',3:'março',4:'abril',5:'maio',6:'junho',
+             7:'julho',8:'agosto',9:'setembro',10:'outubro',11:'novembro',12:'dezembro'}
+    agora = datetime.now()
+    hoje  = f"{agora.day} de {meses[agora.month]} de {agora.year}"
+    hora  = agora.strftime('%H:%M')
+    nome  = usuario.split('@')[0].replace('.', ' ').title().split()[0]
+
+    urgentes    = [e for e in emails if e['prioridade'] == 'urgente']
+    importantes = [e for e in emails if e['prioridade'] == 'importante']
+    atencao     = [e for e in emails if e['prioridade'] == 'atencao']
+    baixa       = [e for e in emails if e['prioridade'] == 'baixa']
+    total       = len(emails)
+
+    def _esc(s):
+        return (s or '').replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace('"','&quot;')
+
+    def card(e, cls, tag_cls, tag_label):
+        corpo = _esc(e.get('corpo','')[:280])
+        corpo_html = f'<div class="preview">{corpo}{"…" if len(e.get("corpo",""))>280 else ""}</div>' if corpo else ''
+        return f'''<div class="ecard {cls}">
+          <div class="ecard-head">
+            <div class="subject">{_esc(e.get("assunto","(sem assunto)"))}</div>
+            <span class="tag {tag_cls}">{tag_label}</span>
+          </div>
+          <div class="from">{_esc(e.get("remetente","?"))} · {_esc(e.get("data",""))}</div>
+          {corpo_html}
+        </div>'''
+
+    def section(items, cls, tag_cls, tag, title):
+        if not items: return ''
+        cards = ''.join(card(e, cls, tag_cls, tag) for e in items)
+        return f'<div class="section"><div class="sec-title">{title}</div>{cards}</div><hr class="div">'
+
+    def badge(n, cls, icon):
+        op = 'opacity:.3' if n == 0 else ''
+        return f'<span class="badge {cls}" style="{op}">{icon} {n}</span>'
+
+    # Plano de ação
+    acoes = [f'Responder <b>{_esc(e.get("remetente","?").split("<")[0].strip())}</b> — {_esc(e.get("assunto","?"))}' for e in urgentes[:3]]
+    acoes += [f'Tratar: {_esc(e.get("assunto","?"))}' for e in importantes[:2]]
+    if not acoes:
+        acoes = ['Caixa em dia — foque nas pautas 🎯']
+    plano = ''.join(f'<div class="step"><div class="num">{i+1}</div><div>{a}</div></div>' for i,a in enumerate(acoes[:6]))
+
+    secs = (
+        section(urgentes,    'ecard-red',    'tag-red',    '🔴 Urgente',    '🔴 Urgentes — agir agora') +
+        section(importantes, 'ecard-yellow', 'tag-yellow', '🟡 Importante', '🟡 Importantes — resolver hoje') +
+        section(atencao,     'ecard-green',  'tag-green',  '🟢 Atenção',    '🟢 Atenção — acompanhar') +
+        section(baixa,       'ecard-grey',   'tag-grey',   '⚪ Baixa',       '⚪ Baixa prioridade')
+    )
+
+    empty = '' if emails else '''<div class="empty">
+      <div style="font-size:2.5rem;margin-bottom:.5rem">✅</div>
+      <div style="font-weight:600;font-size:1.05rem;margin-bottom:.25rem">Caixa em dia</div>
+      <div style="font-size:.875rem;color:#888">Nenhum e-mail não lido nas últimas 18h</div>
+    </div>'''
+
+    return f'''<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>☀️ Triagem · {nome}</title>
+<style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F2F2F2;color:#191818;min-height:100vh}}
+.wrap{{max-width:680px;margin:0 auto;padding:1.5rem 1rem 3rem}}
+.header{{background:#191818;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1rem;color:#fff}}
+.logo{{font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:.5rem}}
+.header h1{{font-size:1.1rem;font-weight:600;margin-bottom:.25rem}}
+.header-sub{{font-size:.8rem;opacity:.6}}
+.badges{{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem}}
+.badge{{font-size:.75rem;font-weight:500;padding:3px 10px;border-radius:20px}}
+.badge-red{{background:#FCEBEB;color:#A32D2D}}
+.badge-yellow{{background:#FAEEDA;color:#854F0B}}
+.badge-green{{background:#EAF3DE;color:#3B6D11}}
+.badge-grey{{background:#F1EFE8;color:#5F5E5A}}
+.refresh-bar{{display:flex;align-items:center;justify-content:space-between;font-size:.75rem;color:#888;margin-bottom:1rem;padding:.5rem .75rem;background:#fff;border-radius:8px;border:.5px solid #E5E5E5}}
+.refresh-bar button{{font-size:.75rem;background:none;border:.5px solid #DDD;border-radius:6px;padding:3px 10px;cursor:pointer;color:#555}}
+.refresh-bar button:hover{{background:#F5F5F5}}
+.section{{background:#fff;border-radius:12px;padding:1rem 1.25rem;margin-bottom:.75rem}}
+.sec-title{{font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#888;margin-bottom:.75rem}}
+.ecard{{border-radius:8px;border:.5px solid #E8E8E8;border-left-width:3px;padding:.85rem 1rem;margin-bottom:.5rem;background:#FAFAFA}}
+.ecard:last-child{{margin-bottom:0}}
+.ecard-red{{border-left-color:#E24B4A}}
+.ecard-yellow{{border-left-color:#EF9F27}}
+.ecard-green{{border-left-color:#639922}}
+.ecard-grey{{border-left-color:#CCC}}
+.ecard-head{{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:.3rem}}
+.subject{{font-size:.875rem;font-weight:500;line-height:1.35}}
+.tag{{font-size:.65rem;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0}}
+.tag-red{{background:#FCEBEB;color:#A32D2D}}
+.tag-yellow{{background:#FAEEDA;color:#854F0B}}
+.tag-green{{background:#EAF3DE;color:#3B6D11}}
+.tag-grey{{background:#F1EFE8;color:#5F5E5A}}
+.from{{font-size:.75rem;color:#888;margin-bottom:.35rem}}
+.preview{{font-size:.75rem;color:#AAA;line-height:1.5;margin-top:.25rem}}
+hr.div{{border:none;border-top:.5px solid #E8E8E8;margin:.75rem 0}}
+.plano{{background:#fff;border-radius:12px;padding:1rem 1.25rem;margin-bottom:.75rem}}
+.plano-title{{font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#888;margin-bottom:.75rem}}
+.step{{display:flex;align-items:flex-start;gap:.6rem;margin-bottom:.5rem;font-size:.825rem;line-height:1.5}}
+.num{{width:20px;height:20px;border-radius:50%;background:#F2F2F2;border:.5px solid #DDD;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:600;flex-shrink:0;color:#888}}
+.empty{{text-align:center;padding:3rem 1rem;background:#fff;border-radius:12px}}
+.footer{{text-align:center;font-size:.7rem;color:#BBB;margin-top:1.5rem}}
+.footer a{{color:#B0A2F9;text-decoration:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="logo">Phocus Propaganda</div>
+    <h1>☀️ Triagem — {hoje}</h1>
+    <div class="header-sub">{total} e-mail{"s" if total!=1 else ""} não lido{"s" if total!=1 else ""} nas últimas 18h · {nome}</div>
+    <div class="badges">
+      {badge(len(urgentes),"badge-red","🔴")}
+      {badge(len(importantes),"badge-yellow","🟡")}
+      {badge(len(atencao),"badge-green","🟢")}
+      {badge(len(baixa),"badge-grey","⚪")}
+    </div>
+  </div>
+
+  <div class="refresh-bar">
+    <span id="ts">Atualizado às {hora}</span>
+    <button onclick="window.location.reload()">↻ Atualizar agora</button>
+  </div>
+
+  {empty}
+  {secs}
+
+  {'<div class="plano"><div class="plano-title">✅ Plano de ação</div>' + plano + '</div>' if emails else ''}
+
+  <div class="footer">Auto-atualiza a cada 5 min · <a href="https://meudia.up.railway.app">Painel completo</a></div>
+</div>
+<script>
+  // Auto-refresh a cada 5 minutos
+  setTimeout(function(){{ window.location.reload(); }}, 5 * 60 * 1000);
+</script>
+</body>
+</html>'''
+
+
+@app.route('/briefing/<token>')
+def briefing(token):
+    """Página de triagem ao vivo acessível via token (para Claude / MCP)."""
+    sessao = get_sessao_por_token(token)
+    if not sessao:
+        return '<p style="font-family:sans-serif;padding:2rem;color:#c00">❌ Token inválido ou expirado.<br>Acesse <a href="/login">meudia.up.railway.app</a> e faça login novamente.</p>', 403
+
+    usuario, senha, empresa = sessao
+    emails, erros, _ = ler_emails(usuario, senha, horas=18)
+
+    if erros:
+        return f'<p style="font-family:sans-serif;padding:2rem;color:#c00">❌ {erros}</p>', 500
+
+    return gerar_html_briefing(emails, usuario, empresa)
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5200))
     app.run(debug=False, host='0.0.0.0', port=port)
