@@ -654,6 +654,15 @@ def briefing(token):
     )
 
 
+@app.route('/debug/mcp')
+def debug_mcp():
+    try:
+        from combined import _sessions, _last_sse_body
+        return jsonify({'sessions': _sessions, 'last_sse': _last_sse_body})
+    except Exception as e:
+        return jsonify({'erro': str(e)})
+
+
 @app.route('/api/salvar-briefing', methods=['POST'])
 def api_salvar_briefing():
     """Salva o briefing gerado pelo Claude no claude.ai."""

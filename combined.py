@@ -27,6 +27,7 @@ mcp_asgi = mcp.http_app(transport='sse')
 
 # session_id → token  (preenchido ao conectar SSE)
 _sessions: dict[str, str] = {}
+_last_sse_body: dict[str, str] = {}  # token → último body SSE (debug)
 
 _starlette = Starlette(routes=[
     Mount('/mcp',      app=mcp_asgi),
@@ -60,9 +61,12 @@ class TokenMiddleware:
             async def capture_send(message):
                 if message.get('type') == 'http.response.body':
                     body = message.get('body', b'').decode('utf-8', errors='replace')
-                    sid = re.search(r'data:\s*(?:/mcp)?/messages/([^\n\r\s]+)', body)
+                    # Captura qualquer variação do endpoint SSE
+                    sid = re.search(r'data:\s*\S*/messages/([^\n\r\s?]+)', body)
                     if sid:
                         _sessions[sid.group(1).strip()] = token
+                    # Fallback: body inteiro para debug
+                    _last_sse_body[token] = body[:500]
                 await send(message)
 
             await self.app(scope, receive, capture_send)
