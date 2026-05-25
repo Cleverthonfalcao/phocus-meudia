@@ -29,8 +29,9 @@ mcp_asgi = mcp.http_app(transport='sse')
 _sessions: dict[str, str] = {}
 
 _starlette = Starlette(routes=[
-    Mount('/mcp', app=mcp_asgi),
-    Mount('/', app=WSGIMiddleware(flask_app)),
+    Mount('/mcp',      app=mcp_asgi),
+    Mount('/messages', app=mcp_asgi),   # FastMCP envia endpoint como /messages/SESSION_ID
+    Mount('/',         app=WSGIMiddleware(flask_app)),
 ])
 
 
@@ -77,8 +78,8 @@ class TokenMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # /mcp/messages/SESSION_ID → injeta token via registro de sessão
-        m = re.match(r'^/mcp/messages/([^\s?]+)', path)
+        # /messages/SESSION_ID ou /mcp/messages/SESSION_ID → injeta token via registro
+        m = re.match(r'^(?:/mcp)?/messages/([^\s?/]+)', path)
         if m:
             session_id = m.group(1)
             token = _sessions.get(session_id, '')
