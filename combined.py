@@ -3,10 +3,10 @@ Phocus Meu Dia — Servidor combinado
 Flask (web app) + FastMCP (MCP server) em uma única porta.
 
 URL do conector MCP: https://meudia.up.railway.app/mcp/SEU_TOKEN/sse
-O middleware extrai o token da URL ANTES do roteamento.
 """
 
 import re
+import time
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -25,9 +25,10 @@ from mcp_server import mcp, mcp_token_ctx
 
 mcp_asgi = mcp.http_app(transport='sse')
 
-# session_id → token  (preenchido ao conectar SSE)
-_sessions: dict[str, str] = {}
-_last_sse_body: dict[str, str] = {}  # token → último corpo SSE (debug)
+# IP do cliente → (token, timestamp)
+# Vincula o token ao IP no momento da conexão SSE.
+# Tool calls do mesmo IP nas próximas 2h usam esse token.
+_token_by_ip: dict[str, tuple[str, float]] = {}
 
 _starlette = Starlette(routes=[
     Mount('/mcp',      app=mcp_asgi),
@@ -37,105 +38,53 @@ _starlette = Starlette(routes=[
 
 
 class TokenMiddleware:
-    """
-    Roda ANTES do Starlette.
-    /mcp/TOKEN/sse       → reescreve para /mcp/sse + intercepta resposta SSE
-    /mcp/TOKEN/messages  → reescreve para /mcp/messages + injeta token
-    /messages/SESSION_ID → injeta token via registro de sessão
-    """
     def __init__(self, app):
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        scope_type = scope.get('type', '')
-
-        # Log de todas as requisições HTTP para debug
-        if scope_type == 'http':
-            path = scope.get('path', '')
-            method = scope.get('method', '')
-            print(f'[MW] {method} {path!r}', flush=True)
-        else:
-            # Para lifespan e websocket, passa direto
+        if scope.get('type') != 'http':
             await self.app(scope, receive, send)
             return
 
-        path = scope.get('path', '')
+        path   = scope.get('path', '')
+        client = scope.get('client') or ('', 0)
+        ip     = client[0]
 
-        # ── 1. /mcp/TOKEN/sse → /mcp/sse + reescrita da URL de endpoint ──────────
-        m = re.match(r'^/mcp/([^/]+)/sse', path)  # sem $ para tolerar query strings
+        # ── 1. /mcp/TOKEN/sse ────────────────────────────────────────────────────
+        m = re.match(r'^/mcp/([^/]+)/sse', path)
         if m:
             token = m.group(1)
-            print(f'[MW] SSE conectando token={token!r}', flush=True)
+            # Registra token por IP — válido por 2 horas
+            _token_by_ip[ip] = (token, time.time())
+            print(f'[MW] SSE ip={ip!r} token={token!r}', flush=True)
             scope = {**scope, 'path': '/mcp/sse', 'raw_path': b'/mcp/sse'}
-
-            async def capture_send(message):
-                msg_type = message.get('type', '')
-                print(f'[CAPTURE] token={token!r} msg_type={msg_type!r}', flush=True)
-
-                if msg_type == 'http.response.body':
-                    body_raw = message.get('body', b'')
-                    body = body_raw.decode('utf-8', errors='replace') if isinstance(body_raw, bytes) else str(body_raw)
-                    _last_sse_body[token] = f'type={msg_type} | {body[:400]}'
-
-                    if body:
-                        print(f'[CAPTURE] body={body[:200]!r}', flush=True)
-
-                        # Reescreve URL de endpoint SSE para incluir o token:
-                        # FastMCP envia:  data: /messages/SESSION_ID
-                        # Queremos:       data: /mcp/TOKEN/messages/SESSION_ID
-                        def rewrite_endpoint(mo):
-                            prefix = mo.group(1)   # "data: "
-                            ep = mo.group(2)        # "/messages/..." ou "/mcp/messages/..."
-
-                            # Normaliza para /messages/SESSION_ID
-                            sid_m = re.search(r'/messages/([^\s\n\r?]+)', ep)
-                            if sid_m:
-                                sid = sid_m.group(1).strip()
-                                _sessions[sid] = token
-                                print(f'[SESSION] registrado {sid!r} → {token!r}', flush=True)
-                                new_ep = f'/mcp/{token}/messages/{sid}'
-                            else:
-                                # Formato com querystring: /messages?sessionId=...
-                                new_ep = f'/mcp/{token}' + ep if ep.startswith('/messages') else ep
-
-                            print(f'[REWRITE] {ep!r} → {new_ep!r}', flush=True)
-                            return prefix + new_ep
-
-                        new_body = re.sub(
-                            r'(data:\s*)(/(?:mcp/)?messages[^\n\r]*)',
-                            rewrite_endpoint,
-                            body
-                        )
-
-                        if new_body != body:
-                            message = {**message, 'body': new_body.encode('utf-8')}
-
-                await send(message)
-
-            await self.app(scope, receive, capture_send)
+            await self.app(scope, receive, send)
             return
 
-        # ── 2. /mcp/TOKEN/messages/... → /mcp/messages/... + injeta token ────────
+        # ── 2. /mcp/TOKEN/messages/... (endpoint reescrito pelo cliente) ─────────
         m = re.match(r'^/mcp/([^/]+)/(messages.*)', path)
         if m:
-            token = m.group(1)
+            token    = m.group(1)
             new_path = '/mcp/' + m.group(2)
-            print(f'[MW] messages via URL token={token!r} → {new_path!r}', flush=True)
             mcp_token_ctx.set(token)
+            print(f'[MW] msg-url ip={ip!r} token={token!r}', flush=True)
             scope = {**scope, 'path': new_path, 'raw_path': new_path.encode()}
             await self.app(scope, receive, send)
             return
 
-        # ── 3. /messages/SESSION_ID → injeta token via registro ──────────────────
-        m = re.match(r'^(?:/mcp)?/messages/([^\s?/]+)', path)
-        if m:
-            session_id = m.group(1)
-            token = _sessions.get(session_id, '')
-            if token:
-                mcp_token_ctx.set(token)
-                print(f'[MW] session lookup {session_id!r} → {token!r}', flush=True)
+        # ── 3. /messages/... ou /mcp/messages/... — injeta token pelo IP ─────────
+        if re.match(r'^(?:/mcp)?/messages/', path):
+            entry = _token_by_ip.get(ip)
+            if entry:
+                token, ts = entry
+                if time.time() - ts < 7200:          # 2 horas
+                    mcp_token_ctx.set(token)
+                    print(f'[MW] msg-ip ip={ip!r} token={token!r}', flush=True)
+                else:
+                    del _token_by_ip[ip]
+                    print(f'[MW] msg-ip EXPIRED ip={ip!r}', flush=True)
             else:
-                print(f'[MW] session NOT FOUND {session_id!r}, known={list(_sessions.keys())}', flush=True)
+                print(f'[MW] msg-ip NOT FOUND ip={ip!r} known={list(_token_by_ip.keys())}', flush=True)
             await self.app(scope, receive, send)
             return
 
