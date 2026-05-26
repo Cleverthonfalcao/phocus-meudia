@@ -335,15 +335,14 @@ body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-he
       <span class="ia-icon">✦</span>
       Digite <strong>"meu dia"</strong> no claude.ai para gerar sugestões de resposta — aparecerão dentro de cada card automaticamente.
     </div>
-    {% elif not sugestoes_map %}
-    {# Briefing antigo formato texto — exibe como fallback #}
+    {% elif plano_ia %}
     <div class="ia-section">
       <div class="ia-header">
         <span class="ia-icon">✦</span>
-        <span class="ia-title">Briefing IA</span>
-        <span class="ia-hora">gerado às {{ briefing_ia[1][11:16] }}</span>
+        <span class="ia-title">Análise do dia</span>
+        <span class="ia-hora">{{ briefing_ia[1][11:16] }}</span>
       </div>
-      <div class="ia-body">{{ briefing_ia[0] | replace('\n', '<br>') | safe }}</div>
+      <div class="ia-body">{{ plano_ia | replace('\n', '<br>') | safe }}</div>
     </div>
     {% endif %}
 

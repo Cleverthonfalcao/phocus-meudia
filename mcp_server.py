@@ -98,10 +98,28 @@ def meu_dia() -> str:
     pagina = f"{BASE_URL}/briefing/{token}"
 
     if not emails:
+        salvar_briefing_ia(token, json.dumps({"emails": [], "plano": ""}, ensure_ascii=False))
         return (
             f"Caixa em dia — nenhum e-mail não lido nas últimas 18h. Bom dia, {nome}!\n\n"
-            f"📋 Página do dia: {pagina}"
+            f"📋 {pagina}"
         )
+
+    # Salva JSON base imediatamente — página já atualiza antes do Claude gerar sugestões
+    base_json = json.dumps({
+        "emails": [
+            {
+                "message_id": e.get('message_id', ''),
+                "remetente":  e['remetente'],
+                "assunto":    e['assunto'],
+                "prioridade": e['prioridade'],
+                "acao":       "",
+                "sugestao":   "",
+            }
+            for e in emails
+        ],
+        "plano": ""
+    }, ensure_ascii=False)
+    salvar_briefing_ia(token, base_json)
 
     hoje = date.today().strftime('%d/%m/%Y')
     linhas = [f"TRIAGEM — {hoje} — {nome} ({empresa.upper()})", f"Total: {len(emails)} e-mail(s)\n"]
@@ -126,7 +144,7 @@ def meu_dia() -> str:
                 linhas.append(f"Prévia: {e['corpo'][:400]}{'...' if len(e['corpo']) > 400 else ''}")
             linhas.append("")
 
-    linhas.append(f"\n📋 Página do dia: {pagina}")
+    linhas.append(f"\n📋 {pagina}")
     linhas.append(f"[Usuário: {nome} | Empresa: {empresa.upper()}]")
 
     return '\n'.join(linhas)

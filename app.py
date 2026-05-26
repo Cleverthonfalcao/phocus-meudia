@@ -640,6 +640,7 @@ def briefing(token):
 
     briefing_ia = get_briefing_ia(token)
     sugestoes_map = {}
+    plano_ia = ''
     if briefing_ia:
         try:
             data = json.loads(briefing_ia[0])
@@ -648,8 +649,10 @@ def briefing(token):
                     mid = sug.get('message_id', '')
                     if mid:
                         sugestoes_map[mid] = sug
+                plano_ia = data.get('plano', '')
         except (json.JSONDecodeError, TypeError):
-            pass
+            # Texto puro — mostra direto no rodapé
+            plano_ia = briefing_ia[0]
 
     logo = 'logo-maxi-branca.png' if empresa == 'maximize' else 'logo-phocus-branca.png'
     return render_template('meu_dia.html',
@@ -664,6 +667,7 @@ def briefing(token):
         logo_src=_logo_b64(logo),
         briefing_ia=briefing_ia,
         sugestoes_map=sugestoes_map,
+        plano_ia=plano_ia,
     )
 
 
@@ -932,6 +936,29 @@ def api_salvar_briefing():
         return jsonify({'ok': False, 'erro': 'token e conteudo obrigatórios'})
     if not get_sessao_por_token(token):
         return jsonify({'ok': False, 'erro': 'token inválido'})
+
+    # Se for JSON válido com estrutura de e-mails, salva direto
+    try:
+        novo = json.loads(conteudo)
+        if isinstance(novo, dict) and 'emails' in novo:
+            salvar_briefing_ia(token, conteudo)
+            return jsonify({'ok': True})
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # Texto simples do Claude: faz merge no JSON base preservando os cards
+    existente = get_briefing_ia(token)
+    if existente:
+        try:
+            base = json.loads(existente[0])
+            if isinstance(base, dict):
+                base['plano'] = conteudo
+                salvar_briefing_ia(token, json.dumps(base, ensure_ascii=False))
+                return jsonify({'ok': True})
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Fallback: salva como texto puro
     salvar_briefing_ia(token, conteudo)
     return jsonify({'ok': True})
 
