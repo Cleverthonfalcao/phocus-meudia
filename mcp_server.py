@@ -87,7 +87,7 @@ def meu_dia() -> str:
         salvar_briefing_ia(token, json.dumps({"emails": [], "plano": ""}, ensure_ascii=False))
         return (
             f"Caixa em dia — nenhum e-mail não lido nas últimas 18h. Bom dia, {nome}!\n\n"
-            f"📋 {pagina}"
+            f"LINK DA PÁGINA DO DIA (mostre ao usuário): {pagina}"
         )
 
     # Salva JSON base imediatamente — página já atualiza antes do Claude gerar sugestões
@@ -130,8 +130,9 @@ def meu_dia() -> str:
                 linhas.append(f"Prévia: {e['corpo'][:400]}{'...' if len(e['corpo']) > 400 else ''}")
             linhas.append("")
 
-    linhas.append(f"\n📋 {pagina}")
-    linhas.append(f"[Usuário: {nome} | Empresa: {empresa.upper()}]")
+    linhas.append(f"\n---")
+    linhas.append(f"LINK DA PÁGINA DO DIA (mostre ao usuário): {pagina}")
+    linhas.append(f"Usuário: {nome} | Empresa: {empresa.upper()}")
 
     return '\n'.join(linhas)
 
