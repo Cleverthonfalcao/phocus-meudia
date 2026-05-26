@@ -297,7 +297,7 @@ body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-he
                 <div class="corpo-txt">{{ e.corpo }}</div>
                 {% endif %}
                 {% set sug = sugestoes_map.get(e.message_id, {}) %}
-                {% if sug %}
+                {% if sug and (sug.sugestao or sug.acao) %}
                 <div class="sug-section">
                   {% if sug.acao %}
                   <div class="sug-acao">{{ sug.acao }}</div>

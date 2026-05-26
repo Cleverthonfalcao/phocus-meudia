@@ -293,7 +293,7 @@ def ler_emails(email_addr, senha, horas=18):
                 data_fmt = data_str[:16]
 
             prioridade = classificar(assunto, remetente, corpo)
-            message_id = msg.get('Message-ID', '').strip()
+            message_id = msg.get('Message-ID', '').strip().strip('<>')
 
             emails.append({
                 'assunto':    assunto,
@@ -398,6 +398,21 @@ def meu_dia():
     resolvidos = get_resolvidos(session['email'])
 
     logo = 'logo-maxi-branca.png' if empresa == 'maximize' else 'logo-phocus-branca.png'
+    token_atual = session.get('token', '')
+    briefing_ia = get_briefing_ia(token_atual)
+    sugestoes_map = {}
+    plano_ia = ''
+    if briefing_ia:
+        try:
+            bdata = json.loads(briefing_ia[0])
+            if isinstance(bdata, dict) and 'emails' in bdata:
+                for sug in bdata['emails']:
+                    mid = sug.get('message_id', '')
+                    if mid:
+                        sugestoes_map[mid] = sug
+                plano_ia = bdata.get('plano', '')
+        except (json.JSONDecodeError, TypeError):
+            plano_ia = briefing_ia[0]
     return render_template('meu_dia.html',
         emails=emails,
         contadores=contadores,
@@ -406,8 +421,11 @@ def meu_dia():
         empresa=empresa,
         erros=erros,
         resolvidos=resolvidos,
-        token=session.get('token',''),
+        token=token_atual,
         logo_src=_logo_b64(logo),
+        briefing_ia=briefing_ia,
+        sugestoes_map=sugestoes_map,
+        plano_ia=plano_ia,
     )
 
 
@@ -957,7 +975,7 @@ def api_salvar_sugestao():
     """Salva sugestão de resposta para um e-mail específico pelo message_id."""
     data = request.get_json() or {}
     token = data.get('token', '').strip()
-    message_id = data.get('message_id', '').strip()
+    message_id = data.get('message_id', '').strip().strip('<>')
     sugestao = data.get('sugestao', '').strip()
     acao = data.get('acao', '').strip()
     if not token or not message_id or not sugestao:
@@ -970,12 +988,17 @@ def api_salvar_sugestao():
         return jsonify({'ok': False, 'erro': 'briefing base não encontrado — chame meu_dia primeiro'})
     try:
         base = json.loads(existente[0])
+        found = False
         for e in base.get('emails', []):
             if e.get('message_id') == message_id:
                 e['sugestao'] = sugestao
                 if acao:
                     e['acao'] = acao
+                found = True
                 break
+        if not found:
+            ids_disp = [e.get('message_id', '') for e in base.get('emails', [])]
+            return jsonify({'ok': False, 'erro': f'message_id nao encontrado. Disponiveis: {ids_disp}'})
         salvar_briefing_ia(token, json.dumps(base, ensure_ascii=False))
         return jsonify({'ok': True})
     except Exception as ex:
