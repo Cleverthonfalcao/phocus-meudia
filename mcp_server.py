@@ -27,13 +27,19 @@ Quando o usuário digitar "meu dia" (ou variações):
 
 1. Chame `meu_dia` — retorna os e-mails com seus Message-IDs.
 
-2. Para cada e-mail URGENTE ou IMPORTANTE:
+2. Pergunte ao usuário (em UMA mensagem curta):
+   "Você tem reuniões ou compromissos hoje? Se sim, me conta horário e com quem — vou incluir na sua página do dia."
+   Aguarde a resposta antes de continuar.
+
+3. Com a resposta sobre a agenda (ou "não tenho" / qualquer variação):
+   - Chame `registrar_agenda` passando o que o usuário disse sobre compromissos do dia.
+
+4. Para cada e-mail URGENTE ou IMPORTANTE:
    - Chame `salvar_sugestao` com o Message-ID exato, a ação necessária e o rascunho de resposta.
-   - Faça isso antes de responder ao usuário.
 
-3. Chame `salvar_briefing` com um resumo textual do dia (plano de ação, observações gerais).
+5. Chame `salvar_briefing` com um resumo do dia que integre e-mails + agenda, sugerindo a melhor ordem para resolver tudo.
 
-4. Apresente o resumo ao usuário e mostre o link da página.
+6. Apresente o resumo e mostre o link da página.
 
 Tom: direto, sem corporativês. Sugestões curtas, como o próprio usuário escreveria.
 Não peça token, senha nem qualquer outra informação.
@@ -197,6 +203,41 @@ def salvar_briefing(conteudo: str) -> str:
             result = json.loads(resp.read())
         if result.get('ok'):
             return f"✅ Briefing com sugestões salvo — {BASE_URL}/briefing/{token}"
+        return f"Erro: {result.get('erro')}"
+    except Exception as e:
+        return f"Erro: {e}"
+
+
+
+@mcp.tool()
+def registrar_agenda(compromissos: str) -> str:
+    """
+    Salva os compromissos e reuniões do dia informados pelo usuário.
+    Chame logo após o usuário responder sobre sua agenda.
+
+    Args:
+        compromissos: O que o usuário disse sobre reuniões/compromissos do dia.
+                      Ex: "reunião às 14h com cliente X, call às 16h com time"
+                      Use "sem compromissos" se o usuário não tiver agenda.
+    """
+    token = _get_token()
+    if not token:
+        return "Erro: token ausente."
+    try:
+        payload = json.dumps({
+            'token': token,
+            'compromissos': compromissos,
+        }).encode()
+        req = urllib.request.Request(
+            f'{BASE_URL}/api/registrar-agenda',
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+        if result.get('ok'):
+            return f"✅ Agenda registrada: {compromissos[:80]}"
         return f"Erro: {result.get('erro')}"
     except Exception as e:
         return f"Erro: {e}"

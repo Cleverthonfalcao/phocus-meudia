@@ -543,6 +543,14 @@ def meu_dia():
                 plano_ia = bdata.get('plano', '')
         except (json.JSONDecodeError, TypeError):
             plano_ia = briefing_ia[0]
+    agenda_md = ''
+    if briefing_ia:
+        try:
+            _bmd = json.loads(briefing_ia[0])
+            agenda_md = _bmd.get('agenda', '') if isinstance(_bmd, dict) else ''
+        except Exception:
+            pass
+
     return render_template('meu_dia.html',
         emails=emails,
         contadores=contadores,
@@ -556,6 +564,7 @@ def meu_dia():
         briefing_ia=briefing_ia,
         sugestoes_map=sugestoes_map,
         plano_ia=plano_ia,
+        agenda=agenda_md,
     )
 
 
@@ -820,6 +829,14 @@ def briefing(token):
             plano_ia = briefing_ia[0]
 
     logo = 'logo-maxi-branca.png' if empresa == 'maximize' else 'logo-phocus-branca.png'
+    agenda = ''
+    if briefing_ia:
+        try:
+            _bd = json.loads(briefing_ia[0])
+            agenda = _bd.get('agenda', '') if isinstance(_bd, dict) else ''
+        except Exception:
+            pass
+
     return render_template('meu_dia.html',
         emails=emails,
         contadores=contadores,
@@ -833,6 +850,7 @@ def briefing(token):
         briefing_ia=briefing_ia,
         sugestoes_map=sugestoes_map,
         plano_ia=plano_ia,
+        agenda=agenda,
     )
 
 
@@ -1150,6 +1168,32 @@ def api_salvar_sugestao():
         return jsonify({'ok': True})
     except Exception as ex:
         return jsonify({'ok': False, 'erro': str(ex)})
+
+
+
+@app.route('/api/registrar-agenda', methods=['POST'])
+def api_registrar_agenda():
+    """Salva os compromissos/reuniões do dia no JSON de briefing."""
+    data = request.get_json() or {}
+    token = data.get('token', '').strip()
+    compromissos = data.get('compromissos', '').strip()
+    if not token:
+        return jsonify({'ok': False, 'erro': 'token obrigatorio'})
+    if not get_sessao_por_token(token):
+        return jsonify({'ok': False, 'erro': 'token invalido'})
+
+    existente = get_briefing_ia(token)
+    if existente:
+        try:
+            base = json.loads(existente[0])
+        except Exception:
+            base = {'emails': [], 'plano': '', 'agenda': ''}
+    else:
+        base = {'emails': [], 'plano': '', 'agenda': ''}
+
+    base['agenda'] = compromissos
+    salvar_briefing_ia(token, json.dumps(base, ensure_ascii=False))
+    return jsonify({'ok': True})
 
 
 if __name__ == '__main__':
