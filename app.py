@@ -189,11 +189,13 @@ IMAP_CONFIG = {
         'host': 'mail.phocuspropaganda.com.br',
         'port': 993,
         'empresa': 'phocus',
+        'webmail_base': 'https://webmail-seguro.com.br/',
     },
     'maximize': {
         'host': 'imap.secureserver.net',
         'port': 993,
         'empresa': 'maximize',
+        'webmail_base': 'https://email.secureserver.net/',
     },
 }
 
@@ -257,11 +259,12 @@ def ler_emails(email_addr, senha, horas=18):
         mail.select('INBOX')
 
         desde = (datetime.now() - timedelta(hours=horas)).strftime('%d-%b-%Y')
-        _, msgs = mail.search(None, f'UNSEEN SINCE "{desde}"')
+        _, msgs = mail.uid('search', None, f'UNSEEN SINCE "{desde}"')
         ids = msgs[0].split()
 
-        for eid in ids[-40:]:
-            _, dados = mail.fetch(eid, '(BODY.PEEK[])')
+        for uid_bytes in ids[-40:]:
+            uid_str = uid_bytes.decode()
+            _, dados = mail.uid('fetch', uid_bytes, '(BODY.PEEK[])')
             msg = email.message_from_bytes(dados[0][1])
 
             raw, enc = decode_header(msg['Subject'] or '')[0]
@@ -294,14 +297,17 @@ def ler_emails(email_addr, senha, horas=18):
 
             prioridade = classificar(assunto, remetente, corpo)
             message_id = msg.get('Message-ID', '').strip()
+            webmail_url = cfg.get('webmail_base', '') + f'?_task=mail&_uid={uid_str}&_mbox=INBOX'
 
             emails.append({
-                'assunto':    assunto,
-                'remetente':  remetente,
-                'data':       data_fmt,
-                'corpo':      corpo.strip(),
-                'prioridade': prioridade,
-                'message_id': message_id,
+                'assunto':     assunto,
+                'remetente':   remetente,
+                'data':        data_fmt,
+                'corpo':       corpo.strip(),
+                'prioridade':  prioridade,
+                'message_id':  message_id,
+                'uid':         uid_str,
+                'webmail_url': webmail_url,
             })
 
         mail.logout()
@@ -639,6 +645,18 @@ def briefing(token):
     resolvidos = get_resolvidos(usuario)
 
     briefing_ia = get_briefing_ia(token)
+    sugestoes_map = {}
+    if briefing_ia:
+        try:
+            data = json.loads(briefing_ia[0])
+            if isinstance(data, dict) and 'emails' in data:
+                for sug in data['emails']:
+                    mid = sug.get('message_id', '')
+                    if mid:
+                        sugestoes_map[mid] = sug
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     logo = 'logo-maxi-branca.png' if empresa == 'maximize' else 'logo-phocus-branca.png'
     return render_template('meu_dia.html',
         emails=emails,
@@ -651,6 +669,7 @@ def briefing(token):
         token=token,
         logo_src=_logo_b64(logo),
         briefing_ia=briefing_ia,
+        sugestoes_map=sugestoes_map,
     )
 
 

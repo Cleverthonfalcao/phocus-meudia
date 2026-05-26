@@ -112,6 +112,23 @@ body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-he
            background:#F9F9F9;color:#666;border:1px solid #EFEFEF;
            white-space:pre-wrap;word-break:break-word;max-height:130px;overflow-y:auto}
 
+/* ── Sugestão IA inline ── */
+.sug-section{margin-top:10px;padding-top:10px;border-top:1px solid #F0F0F0}
+.sug-acao{font-size:11px;font-weight:700;color:#888;margin-bottom:6px;
+          text-transform:uppercase;letter-spacing:.04em}
+.sug-text{font-size:12px;line-height:1.7;color:#444;background:#F5F3FF;
+          border:1px solid rgba(176,162,249,.25);border-left:3px solid #B0A2F9;
+          border-radius:8px;padding:10px 12px;white-space:pre-wrap;word-break:break-word}
+.sug-buttons{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.btn-sug{font-family:'Montserrat',sans-serif;font-size:11px;font-weight:700;
+         border:none;border-radius:8px;padding:7px 14px;cursor:pointer;
+         display:flex;align-items:center;gap:5px;transition:.15s;text-decoration:none}
+.btn-copiar{background:#B0A2F9;color:#191818}
+.btn-copiar:hover{opacity:.85}
+.btn-copiar.copiado{background:#45B577;color:#fff}
+.btn-abrir{background:#191818;color:#F9F9F9}
+.btn-abrir:hover{background:#333}
+
 .resolved-strip{display:none;align-items:center;gap:6px;padding:5px 14px;
                 font-size:11px;font-weight:700;background:#45B577;color:#fff}
 .ecard.resolved .resolved-strip{display:flex}
@@ -274,13 +291,33 @@ body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-he
               </div>
               <div class="ecard-chevron">⌄</div>
             </div>
-            {% if e.corpo %}
             <div class="ecard-expand">
               <div class="ecard-expand-inner">
+                {% if e.corpo %}
                 <div class="corpo-txt">{{ e.corpo }}</div>
+                {% endif %}
+                {% set sug = sugestoes_map.get(e.message_id, {}) %}
+                {% if sug %}
+                <div class="sug-section">
+                  {% if sug.acao %}
+                  <div class="sug-acao">{{ sug.acao }}</div>
+                  {% endif %}
+                  {% if sug.sugestao %}
+                  <div class="sug-text">{{ sug.sugestao }}</div>
+                  <div class="sug-buttons">
+                    <button class="btn-sug btn-copiar"
+                            onclick="copiarSugestao(event, this)">📋 Copiar resposta</button>
+                    {% if e.webmail_url %}
+                    <a class="btn-sug btn-abrir"
+                       href="{{ e.webmail_url }}" target="_blank"
+                       onclick="event.stopPropagation()">✉️ Abrir e-mail</a>
+                    {% endif %}
+                  </div>
+                  {% endif %}
+                </div>
+                {% endif %}
               </div>
             </div>
-            {% endif %}
             <div class="resolved-strip">✓ Resolvido</div>
           </div>
           {% endfor %}
@@ -298,7 +335,13 @@ body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-he
       {% endif %}
     </div>
 
-    {% if briefing_ia %}
+    {% if not briefing_ia %}
+    <div class="ia-section ia-vazio">
+      <span class="ia-icon">✦</span>
+      Digite <strong>"meu dia"</strong> no claude.ai para gerar sugestões de resposta — aparecerão dentro de cada card automaticamente.
+    </div>
+    {% elif not sugestoes_map %}
+    {# Briefing antigo formato texto — exibe como fallback #}
     <div class="ia-section">
       <div class="ia-header">
         <span class="ia-icon">✦</span>
@@ -306,11 +349,6 @@ body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-he
         <span class="ia-hora">gerado às {{ briefing_ia[1][11:16] }}</span>
       </div>
       <div class="ia-body">{{ briefing_ia[0] | replace('\n', '<br>') | safe }}</div>
-    </div>
-    {% else %}
-    <div class="ia-section ia-vazio">
-      <span class="ia-icon">✦</span>
-      Digite <strong>"meu dia"</strong> no claude.ai para gerar sugestões de resposta com IA — aparecerão aqui automaticamente.
     </div>
     {% endif %}
 
@@ -336,6 +374,21 @@ async function resolver(e, circle) {
       body: JSON.stringify({ message_id: msgId, acao: isResolved ? 'resolver' : 'desmarcar' })
     });
   } catch(_) {}
+}
+
+// ── Copiar sugestão de resposta ───────────────────────────────────────────────
+function copiarSugestao(event, btn) {
+  event.stopPropagation();
+  const sug = btn.closest('.ecard').querySelector('.sug-text');
+  if (!sug) return;
+  navigator.clipboard.writeText(sug.textContent.trim()).then(() => {
+    btn.textContent = '✅ Copiado!';
+    btn.classList.add('copiado');
+    setTimeout(() => {
+      btn.textContent = '📋 Copiar resposta';
+      btn.classList.remove('copiado');
+    }, 2000);
+  });
 }
 
 // ── Config panel ──────────────────────────────────────────────────────────────

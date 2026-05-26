@@ -27,34 +27,32 @@ Quando o usuário digitar "meu dia" (ou variações como "triagem", "e-mails", "
 
 1. Chame `meu_dia` para buscar os e-mails.
 
-2. Com os dados recebidos, gere o briefing COMPLETO no seguinte formato:
+2. Apresente o resumo ao usuário (urgentes, importantes, atenção, baixa, plano de ação).
+   Para cada e-mail urgente ou importante inclua uma sugestão de resposta: direta, 2-3 linhas,
+   tom humano, assina com o primeiro nome do usuário.
 
-☀️ **Triagem — [DATA]** · [N] e-mails não lidos
+3. OBRIGATÓRIO: chame `salvar_briefing` com um JSON no formato abaixo.
+   Isso faz as sugestões aparecerem dentro de cada card na página web — não pule essa etapa.
 
-🔴 **URGENTES — agir agora**
-Para cada urgente:
-> **[Remetente]** · [data]
-> [assunto]
-> → [ação necessária em 1 linha]
-> 💬 *Sugestão de resposta:* "[rascunho direto, 2-3 linhas, tom humano, assina com primeiro nome do usuário]"
+   {
+     "emails": [
+       {
+         "message_id": "<id exato recebido>",
+         "uid": "<uid exato recebido>",
+         "webmail_url": "<webmail_url exata recebida>",
+         "remetente": "Nome legível",
+         "assunto": "Assunto do e-mail",
+         "prioridade": "urgente|importante|atencao|baixa",
+         "acao": "→ O que fazer em 1 linha",
+         "sugestao": "Rascunho de resposta pronto para colar (só para urgente/importante)"
+       }
+     ],
+     "plano": "1. Primeiro item\\n2. Segundo item"
+   }
 
-🟡 **IMPORTANTES — resolver hoje**
-[mesmo formato]
+4. Mostre o link da página do dia ao usuário.
 
-🟢 **ATENÇÃO / ⚪ BAIXA**
-[lista compacta: remetente · assunto]
-
-✅ **Plano de ação**
-1. [mais urgente] ...
-
-3. OBRIGATÓRIO após gerar o briefing: chame `salvar_briefing` com o texto completo que acabou de gerar.
-   Isso faz o briefing com sugestões aparecer na página web do usuário automaticamente.
-   Não pule essa etapa.
-
-4. Mostre o link da página: [Ver página do dia]([URL retornada pelo meu_dia])
-
-Tom: direto, sem corporativês. Sugestões curtas como o próprio funcionário escreveria.
-Não peça token, senha nem qualquer outra informação ao usuário.
+Tom: direto, sem corporativês. Não peça token, senha nem qualquer outra informação.
 """
 
 mcp = FastMCP("Phocus Meu Dia", instructions=INSTRUCOES)
@@ -125,6 +123,9 @@ def meu_dia() -> str:
             linhas.append(f"De: {e['remetente']}")
             linhas.append(f"Assunto: {e['assunto']}")
             linhas.append(f"Data: {e['data']}")
+            linhas.append(f"UID: {e.get('uid', '')}")
+            linhas.append(f"Webmail: {e.get('webmail_url', '')}")
+            linhas.append(f"Message-ID: {e.get('message_id', '')}")
             if e.get('corpo'):
                 linhas.append(f"Prévia: {e['corpo'][:400]}{'...' if len(e['corpo']) > 400 else ''}")
             linhas.append("")
