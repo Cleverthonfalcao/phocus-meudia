@@ -20,10 +20,44 @@ from app import ler_emails, get_sessao_por_token, salvar_briefing_ia
 
 mcp_token_ctx: ContextVar[str] = ContextVar('mcp_token', default='')
 
-mcp = FastMCP("Phocus Meu Dia", instructions=(
-    "Quando o usuário disser 'meu dia', chame imediatamente a ferramenta meu_dia. "
-    "Não peça token, senha nem qualquer outra informação ao usuário."
-))
+INSTRUCOES = """
+Você é o assistente de triagem diária da Phocus Propaganda.
+
+Quando o usuário digitar "meu dia" (ou variações como "triagem", "e-mails", "o que chegou"):
+
+1. Chame `meu_dia` para buscar os e-mails.
+
+2. Com os dados recebidos, gere o briefing COMPLETO no seguinte formato:
+
+☀️ **Triagem — [DATA]** · [N] e-mails não lidos
+
+🔴 **URGENTES — agir agora**
+Para cada urgente:
+> **[Remetente]** · [data]
+> [assunto]
+> → [ação necessária em 1 linha]
+> 💬 *Sugestão de resposta:* "[rascunho direto, 2-3 linhas, tom humano, assina com primeiro nome do usuário]"
+
+🟡 **IMPORTANTES — resolver hoje**
+[mesmo formato]
+
+🟢 **ATENÇÃO / ⚪ BAIXA**
+[lista compacta: remetente · assunto]
+
+✅ **Plano de ação**
+1. [mais urgente] ...
+
+3. OBRIGATÓRIO após gerar o briefing: chame `salvar_briefing` com o texto completo que acabou de gerar.
+   Isso faz o briefing com sugestões aparecer na página web do usuário automaticamente.
+   Não pule essa etapa.
+
+4. Mostre o link da página: [Ver página do dia]([URL retornada pelo meu_dia])
+
+Tom: direto, sem corporativês. Sugestões curtas como o próprio funcionário escreveria.
+Não peça token, senha nem qualquer outra informação ao usuário.
+"""
+
+mcp = FastMCP("Phocus Meu Dia", instructions=INSTRUCOES)
 
 
 def _get_token() -> str:
@@ -46,9 +80,9 @@ def _get_token() -> str:
 @mcp.tool()
 def meu_dia() -> str:
     """
-    Retorna e-mails não lidos das últimas 18h classificados por prioridade.
-    Chame quando o usuário pedir 'meu dia', 'triagem' ou quiser ver e-mails.
-    Não requer parâmetros. Já salva o briefing e retorna o link da página.
+    Busca e-mails não lidos das últimas 18h classificados por prioridade.
+    Retorna os dados brutos para o Claude gerar o briefing com sugestões de resposta.
+    Após gerar o briefing, chame salvar_briefing com o texto completo.
     """
     token = _get_token()
     if not token:
@@ -56,7 +90,7 @@ def meu_dia() -> str:
 
     sessao = get_sessao_por_token(token)
     if not sessao:
-        return "Erro: token inválido. Reconecte em meudia.up.railway.app"
+        return "Erro: token inválido. Reconecte em meudia.up.railway.app/meu-token"
 
     usuario, senha, empresa = sessao
     emails, erros, _ = ler_emails(usuario, senha, horas=18)
@@ -68,10 +102,8 @@ def meu_dia() -> str:
     pagina = f"{BASE_URL}/briefing/{token}"
 
     if not emails:
-        conteudo = f"Caixa em dia — nenhum e-mail não lido nas últimas 18h. Bom dia, {nome}!"
-        salvar_briefing_ia(token, conteudo)
         return (
-            f"{conteudo}\n\n"
+            f"Caixa em dia — nenhum e-mail não lido nas últimas 18h. Bom dia, {nome}!\n\n"
             f"📋 Página do dia: {pagina}"
         )
 
@@ -94,28 +126,23 @@ def meu_dia() -> str:
             linhas.append(f"Assunto: {e['assunto']}")
             linhas.append(f"Data: {e['data']}")
             if e.get('corpo'):
-                linhas.append(f"Prévia: {e['corpo'][:300]}{'...' if len(e['corpo'])>300 else ''}")
+                linhas.append(f"Prévia: {e['corpo'][:400]}{'...' if len(e['corpo']) > 400 else ''}")
             linhas.append("")
 
-    resultado = '\n'.join(linhas)
+    linhas.append(f"\n📋 Página do dia: {pagina}")
+    linhas.append(f"[Usuário: {nome} | Empresa: {empresa.upper()}]")
 
-    # Salva briefing automaticamente — não depende do Claude chamar salvar_briefing
-    salvar_briefing_ia(token, resultado)
-
-    return (
-        resultado +
-        f"\n\n📋 Página do dia: {pagina}"
-    )
+    return '\n'.join(linhas)
 
 
 @mcp.tool()
 def salvar_briefing(conteudo: str) -> str:
     """
-    Salva o briefing gerado na página web do usuário.
-    Chame após gerar sugestões de resposta para enriquecer a página.
+    Salva o briefing gerado com sugestões de resposta na página web do usuário.
+    SEMPRE chame este tool após gerar o briefing — o conteúdo aparecerá em /briefing/TOKEN.
 
     Args:
-        conteudo: Texto completo do briefing com sugestões de resposta
+        conteudo: Texto completo do briefing gerado, incluindo sugestões de resposta por e-mail
     """
     token = _get_token()
     if not token:
@@ -131,7 +158,7 @@ def salvar_briefing(conteudo: str) -> str:
         with urllib.request.urlopen(req, timeout=10) as resp:
             result = json.loads(resp.read())
         if result.get('ok'):
-            return f"Briefing salvo — {BASE_URL}/briefing/{token}"
+            return f"✅ Briefing com sugestões salvo — {BASE_URL}/briefing/{token}"
         return f"Erro: {result.get('erro')}"
     except Exception as e:
         return f"Erro: {e}"
