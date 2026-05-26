@@ -20,15 +20,32 @@ from starlette.applications import Starlette
 from starlette.routing import Mount
 from starlette.middleware.wsgi import WSGIMiddleware
 
-from app import app as flask_app
+from app import app as flask_app, save_ip_token, get_token_by_ip
 from mcp_server import mcp, mcp_token_ctx
 
 mcp_asgi = mcp.http_app(transport='sse')
 
-# IP do cliente → (token, timestamp)
-# Vincula o token ao IP no momento da conexão SSE.
-# Tool calls do mesmo IP nas próximas 2h usam esse token.
+# Cache em memória (velocidade) + persistência no banco (sobrevive a deploys)
 _token_by_ip: dict[str, tuple[str, float]] = {}
+
+def _set_token(ip: str, token: str):
+    _token_by_ip[ip] = (token, time.time())
+    try:
+        save_ip_token(ip, token)
+    except Exception:
+        pass
+
+def _get_ip_token(ip: str) -> str:
+    entry = _token_by_ip.get(ip)
+    if entry:
+        token, ts = entry
+        if time.time() - ts < 86400:
+            return token
+    try:
+        return get_token_by_ip(ip)
+    except Exception:
+        return ''
+
 
 _starlette = Starlette(routes=[
     Mount('/mcp',      app=mcp_asgi),
@@ -55,7 +72,7 @@ class TokenMiddleware:
         if m:
             token = m.group(1)
             # Registra token por IP — válido por 2 horas
-            _token_by_ip[ip] = (token, time.time())
+            _set_token(ip, token)
             print(f'[MW] SSE ip={ip!r} token={token!r}', flush=True)
             scope = {**scope, 'path': '/mcp/sse', 'raw_path': b'/mcp/sse'}
             await self.app(scope, receive, send)
@@ -74,17 +91,12 @@ class TokenMiddleware:
 
         # ── 3. /messages/... ou /mcp/messages/... — injeta token pelo IP ─────────
         if re.match(r'^(?:/mcp)?/messages/', path):
-            entry = _token_by_ip.get(ip)
-            if entry:
-                token, ts = entry
-                if time.time() - ts < 7200:          # 2 horas
-                    mcp_token_ctx.set(token)
-                    print(f'[MW] msg-ip ip={ip!r} token={token!r}', flush=True)
-                else:
-                    del _token_by_ip[ip]
-                    print(f'[MW] msg-ip EXPIRED ip={ip!r}', flush=True)
+            token = _get_ip_token(ip)
+            if token:
+                mcp_token_ctx.set(token)
+                print(f'[MW] msg-ip ip={ip!r} token={token!r}', flush=True)
             else:
-                print(f'[MW] msg-ip NOT FOUND ip={ip!r} known={list(_token_by_ip.keys())}', flush=True)
+                print(f'[MW] msg-ip NOT FOUND ip={ip!r}', flush=True)
             await self.app(scope, receive, send)
             return
 

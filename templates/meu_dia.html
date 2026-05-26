@@ -183,6 +183,23 @@ body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-he
 .agenda-desc{font-size:13px;color:#333;line-height:1.45}
 .agenda-raw{font-size:12px;color:#555;line-height:1.7;white-space:pre-wrap}
 
+/* ── Loading sugestões ── */
+.sug-loading{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);margin-top:8px;font-size:12px;color:var(--color-text-secondary)}
+.sug-spinner{width:12px;height:12px;border:2px solid rgba(176,162,249,.3);border-top-color:#B0A2F9;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+.sug-ready-banner{display:none;position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#191818;color:#F9F9F9;padding:10px 22px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 24px rgba(0,0,0,.25);z-index:999;border:1px solid rgba(255,255,255,.1);animation:slideUp .3s ease;white-space:nowrap}
+
+/* ── Input agenda ── */
+.agenda-input-section{background:#fff;border-radius:14px;padding:1.1rem 1.5rem;margin-bottom:1.75rem;border:1px solid rgba(25,24,24,.07);box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.agenda-input-hd{display:flex;align-items:center;gap:8px;margin-bottom:.75rem}
+.agenda-input-title{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#999}
+.agenda-input-row{display:flex;gap:8px}
+.agenda-input-row textarea{flex:1;padding:8px 12px;border:0.5px solid #DDD;border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px;color:#191818;resize:none;height:60px;outline:none;transition:border-color .15s}
+.agenda-input-row textarea:focus{border-color:#B0A2F9}
+.btn-agenda-save{background:#191818;color:#F9F9F9;border:none;border-radius:8px;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;padding:0 16px;cursor:pointer;flex-shrink:0;transition:.15s}
+.btn-agenda-save:hover{background:#333}
+.btn-agenda-save.saved{background:#45B577}
+.agenda-saved-text{font-size:11px;color:#45B577;margin-top:6px;display:none}
+
 /* ── Animações ── */
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes slideUp{
@@ -280,6 +297,27 @@ body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-he
     </div>
     {% endif %}
 
+    <!-- Banner sugestões prontas -->
+    <div class="sug-ready-banner" id="sug-ready-banner" onclick="window.location.reload()">
+      ✦ Sugestões prontas — toque para ver
+    </div>
+
+    <!-- Input de agenda (sempre visível) -->
+    <div class="agenda-input-section">
+      <div class="agenda-input-hd">
+        <span style="font-size:13px">📅</span>
+        <span class="agenda-input-title">Compromissos de hoje</span>
+      </div>
+      {% if agenda %}
+      <div style="font-size:13px;color:#555;line-height:1.6;margin-bottom:8px;white-space:pre-wrap">{{ agenda }}</div>
+      {% endif %}
+      <div class="agenda-input-row">
+        <textarea id="agenda-txt" placeholder="Ex: 14h reunião com Pedro, 16h call com cliente...">{{ agenda or '' }}</textarea>
+        <button class="btn-agenda-save" id="btn-agenda-save" onclick="salvarAgenda()">Salvar</button>
+      </div>
+      <div class="agenda-saved-text" id="agenda-saved-text">✓ Agenda salva</div>
+    </div>
+
     <!-- Contadores -->
     <div class="counters">
       <div class="cnt r" id="cnt-box-urgente">
@@ -352,6 +390,11 @@ body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-he
                             onclick="copiarSugestao(event, this)">📋 Copiar resposta</button>
                   </div>
                   {% endif %}
+                </div>
+                {% elif e.prioridade in ('urgente', 'importante') %}
+                <div class="sug-loading">
+                  <div class="sug-spinner"></div>
+                  <span>Gerando sugestão de resposta…</span>
                 </div>
                 {% endif %}
               </div>
@@ -531,6 +574,54 @@ document.getElementById('ultima-atualizacao').textContent =
   'Atualizado às ' + agora.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
 
 setInterval(verificarNovos, 5 * 60 * 1000);
+
+// ── Salvar agenda ──────────────────────────────────────────────────────────
+async function salvarAgenda() {
+  const txt = document.getElementById('agenda-txt').value.trim();
+  const btn = document.getElementById('btn-agenda-save');
+  const msg = document.getElementById('agenda-saved-text');
+  if (!txt) return;
+  btn.disabled = true;
+  try {
+    await fetch('/api/registrar-agenda', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ token: '{{ token }}', compromissos: txt })
+    });
+    btn.textContent = '✓';
+    btn.classList.add('saved');
+    msg.style.display = 'block';
+    setTimeout(() => { btn.textContent = 'Salvar'; btn.classList.remove('saved'); btn.disabled = false; }, 2000);
+  } catch(_) { btn.disabled = false; }
+}
+
+// ── Polling para sugestões ────────────────────────────────────────────────
+{% if token %}
+(function() {
+  const token = '{{ token }}';
+  let tentativas = 0;
+  const maxTentativas = 24; // 2 min
+  
+  function verificarSugestoes() {
+    fetch('/api/briefing-status?token=' + token)
+      .then(r => r.json())
+      .then(d => {
+        if (d.ready) {
+          document.getElementById('sug-ready-banner').style.display = 'block';
+        } else if (++tentativas < maxTentativas) {
+          setTimeout(verificarSugestoes, 5000);
+        }
+      })
+      .catch(() => {});
+  }
+
+  // Só faz polling se não há sugestões visíveis já
+  const temSugestao = document.querySelector('.sug-text');
+  if (!temSugestao) {
+    setTimeout(verificarSugestoes, 6000);
+  }
+})();
+{% endif %}
 </script>
 
 </body>

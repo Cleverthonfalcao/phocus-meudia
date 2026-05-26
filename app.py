@@ -106,6 +106,45 @@ def init_db():
 
 init_db()
 
+def save_ip_token(ip: str, token: str):
+    """Persiste mapeamento IP→token no banco para sobreviver a deploys."""
+    if DATABASE_URL:
+        db_execute(
+            f'''CREATE TABLE IF NOT EXISTS ip_tokens (
+                ip TEXT PRIMARY KEY, token TEXT NOT NULL, ts TEXT NOT NULL
+            )''')
+        db_execute(
+            f'INSERT INTO ip_tokens (ip, token, ts) VALUES ({_ph(3)}) ON CONFLICT (ip) DO UPDATE SET token={_ph()}, ts={_ph()}',
+            (ip, token, datetime.now().isoformat(), token, datetime.now().isoformat())
+        )
+    else:
+        db_execute('''CREATE TABLE IF NOT EXISTS ip_tokens (
+            ip TEXT PRIMARY KEY, token TEXT NOT NULL, ts TEXT NOT NULL
+        )''')
+        db_execute(
+            f'INSERT OR REPLACE INTO ip_tokens (ip, token, ts) VALUES ({_ph(3)})',
+            (ip, token, datetime.now().isoformat())
+        )
+
+def get_token_by_ip(ip: str) -> str:
+    """Recupera token pelo IP (válido por 24h)."""
+    row = db_execute(
+        f'SELECT token, ts FROM ip_tokens WHERE ip={_ph()}',
+        (ip,), fetchone=True
+    )
+    if not row:
+        return ''
+    token, ts = row
+    try:
+        age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds()
+        if age > 86400:  # 24h
+            return ''
+    except Exception:
+        pass
+    return token
+
+
+
 
 # ── Geração automática de sugestões via API do Claude ─────────────────────────
 
@@ -1170,6 +1209,24 @@ def api_salvar_sugestao():
         return jsonify({'ok': False, 'erro': str(ex)})
 
 
+
+
+@app.route('/api/briefing-status')
+def api_briefing_status():
+    """Retorna se sugestões já foram geradas para o token atual."""
+    token = request.args.get('token', '').strip()
+    if not token or not get_sessao_por_token(token):
+        return jsonify({'ready': False})
+    briefing = get_briefing_ia(token)
+    if not briefing:
+        return jsonify({'ready': False})
+    try:
+        data = json.loads(briefing[0])
+        has_sug = any(e.get('sugestao') for e in data.get('emails', []))
+        agenda  = data.get('agenda', '')
+        return jsonify({'ready': has_sug, 'agenda': agenda})
+    except Exception:
+        return jsonify({'ready': False})
 
 @app.route('/api/registrar-agenda', methods=['POST'])
 def api_registrar_agenda():
