@@ -37,9 +37,7 @@ Quando o usuário digitar "meu dia" (ou variações como "triagem", "e-mails", "
    {
      "emails": [
        {
-         "message_id": "<id exato recebido>",
-         "uid": "<uid exato recebido>",
-         "webmail_url": "<webmail_url exata recebida>",
+         "message_id": "<Message-ID exato recebido>",
          "remetente": "Nome legível",
          "assunto": "Assunto do e-mail",
          "prioridade": "urgente|importante|atencao|baixa",
@@ -123,8 +121,6 @@ def meu_dia() -> str:
             linhas.append(f"De: {e['remetente']}")
             linhas.append(f"Assunto: {e['assunto']}")
             linhas.append(f"Data: {e['data']}")
-            linhas.append(f"UID: {e.get('uid', '')}")
-            linhas.append(f"Webmail: {e.get('webmail_url', '')}")
             linhas.append(f"Message-ID: {e.get('message_id', '')}")
             if e.get('corpo'):
                 linhas.append(f"Prévia: {e['corpo'][:400]}{'...' if len(e['corpo']) > 400 else ''}")

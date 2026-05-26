@@ -307,11 +307,6 @@ body{font-family:'Montserrat',sans-serif;background:#F2F2F2;color:#191818;min-he
                   <div class="sug-buttons">
                     <button class="btn-sug btn-copiar"
                             onclick="copiarSugestao(event, this)">📋 Copiar resposta</button>
-                    {% if e.webmail_url %}
-                    <a class="btn-sug btn-abrir"
-                       href="{{ e.webmail_url }}" target="_blank"
-                       onclick="event.stopPropagation()">✉️ Abrir e-mail</a>
-                    {% endif %}
                   </div>
                   {% endif %}
                 </div>

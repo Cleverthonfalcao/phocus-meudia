@@ -189,13 +189,11 @@ IMAP_CONFIG = {
         'host': 'mail.phocuspropaganda.com.br',
         'port': 993,
         'empresa': 'phocus',
-        'webmail_base': 'https://webmail-seguro.com.br/',
     },
     'maximize': {
         'host': 'imap.secureserver.net',
         'port': 993,
         'empresa': 'maximize',
-        'webmail_base': 'https://email.secureserver.net/',
     },
 }
 
@@ -259,12 +257,11 @@ def ler_emails(email_addr, senha, horas=18):
         mail.select('INBOX')
 
         desde = (datetime.now() - timedelta(hours=horas)).strftime('%d-%b-%Y')
-        _, msgs = mail.uid('search', None, f'UNSEEN SINCE "{desde}"')
+        _, msgs = mail.search(None, f'UNSEEN SINCE "{desde}"')
         ids = msgs[0].split()
 
-        for uid_bytes in ids[-40:]:
-            uid_str = uid_bytes.decode()
-            _, dados = mail.uid('fetch', uid_bytes, '(BODY.PEEK[])')
+        for eid in ids[-40:]:
+            _, dados = mail.fetch(eid, '(BODY.PEEK[])')
             msg = email.message_from_bytes(dados[0][1])
 
             raw, enc = decode_header(msg['Subject'] or '')[0]
@@ -297,17 +294,14 @@ def ler_emails(email_addr, senha, horas=18):
 
             prioridade = classificar(assunto, remetente, corpo)
             message_id = msg.get('Message-ID', '').strip()
-            webmail_url = cfg.get('webmail_base', '') + f'?_task=mail&_uid={uid_str}&_mbox=INBOX'
 
             emails.append({
-                'assunto':     assunto,
-                'remetente':   remetente,
-                'data':        data_fmt,
-                'corpo':       corpo.strip(),
-                'prioridade':  prioridade,
-                'message_id':  message_id,
-                'uid':         uid_str,
-                'webmail_url': webmail_url,
+                'assunto':    assunto,
+                'remetente':  remetente,
+                'data':       data_fmt,
+                'corpo':      corpo.strip(),
+                'prioridade': prioridade,
+                'message_id': message_id,
             })
 
         mail.logout()
