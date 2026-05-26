@@ -928,7 +928,7 @@ def debug_mcp():
 
 @app.route('/api/salvar-briefing', methods=['POST'])
 def api_salvar_briefing():
-    """Salva o briefing gerado pelo Claude no claude.ai."""
+    """Salva o briefing/análise do Claude — faz merge no JSON base."""
     data = request.get_json() or {}
     token = data.get('token', '').strip()
     conteudo = data.get('conteudo', '').strip()
@@ -937,16 +937,6 @@ def api_salvar_briefing():
     if not get_sessao_por_token(token):
         return jsonify({'ok': False, 'erro': 'token inválido'})
 
-    # Se for JSON válido com estrutura de e-mails, salva direto
-    try:
-        novo = json.loads(conteudo)
-        if isinstance(novo, dict) and 'emails' in novo:
-            salvar_briefing_ia(token, conteudo)
-            return jsonify({'ok': True})
-    except (json.JSONDecodeError, TypeError):
-        pass
-
-    # Texto simples do Claude: faz merge no JSON base preservando os cards
     existente = get_briefing_ia(token)
     if existente:
         try:
@@ -958,9 +948,38 @@ def api_salvar_briefing():
         except (json.JSONDecodeError, TypeError):
             pass
 
-    # Fallback: salva como texto puro
     salvar_briefing_ia(token, conteudo)
     return jsonify({'ok': True})
+
+
+@app.route('/api/salvar-sugestao', methods=['POST'])
+def api_salvar_sugestao():
+    """Salva sugestão de resposta para um e-mail específico pelo message_id."""
+    data = request.get_json() or {}
+    token = data.get('token', '').strip()
+    message_id = data.get('message_id', '').strip()
+    sugestao = data.get('sugestao', '').strip()
+    acao = data.get('acao', '').strip()
+    if not token or not message_id or not sugestao:
+        return jsonify({'ok': False, 'erro': 'token, message_id e sugestao obrigatórios'})
+    if not get_sessao_por_token(token):
+        return jsonify({'ok': False, 'erro': 'token inválido'})
+
+    existente = get_briefing_ia(token)
+    if not existente:
+        return jsonify({'ok': False, 'erro': 'briefing base não encontrado — chame meu_dia primeiro'})
+    try:
+        base = json.loads(existente[0])
+        for e in base.get('emails', []):
+            if e.get('message_id') == message_id:
+                e['sugestao'] = sugestao
+                if acao:
+                    e['acao'] = acao
+                break
+        salvar_briefing_ia(token, json.dumps(base, ensure_ascii=False))
+        return jsonify({'ok': True})
+    except Exception as ex:
+        return jsonify({'ok': False, 'erro': str(ex)})
 
 
 if __name__ == '__main__':

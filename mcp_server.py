@@ -23,34 +23,20 @@ mcp_token_ctx: ContextVar[str] = ContextVar('mcp_token', default='')
 INSTRUCOES = """
 Você é o assistente de triagem diária da Phocus Propaganda.
 
-Quando o usuário digitar "meu dia" (ou variações como "triagem", "e-mails", "o que chegou"):
+Quando o usuário digitar "meu dia" (ou variações):
 
-1. Chame `meu_dia` para buscar os e-mails.
+1. Chame `meu_dia` — retorna os e-mails com seus Message-IDs.
 
-2. Apresente o resumo ao usuário (urgentes, importantes, atenção, baixa, plano de ação).
-   Para cada e-mail urgente ou importante inclua uma sugestão de resposta: direta, 2-3 linhas,
-   tom humano, assina com o primeiro nome do usuário.
+2. Para cada e-mail URGENTE ou IMPORTANTE:
+   - Chame `salvar_sugestao` com o Message-ID exato, a ação necessária e o rascunho de resposta.
+   - Faça isso antes de responder ao usuário.
 
-3. OBRIGATÓRIO: chame `salvar_briefing` com um JSON no formato abaixo.
-   Isso faz as sugestões aparecerem dentro de cada card na página web — não pule essa etapa.
+3. Chame `salvar_briefing` com um resumo textual do dia (plano de ação, observações gerais).
 
-   {
-     "emails": [
-       {
-         "message_id": "<Message-ID exato recebido>",
-         "remetente": "Nome legível",
-         "assunto": "Assunto do e-mail",
-         "prioridade": "urgente|importante|atencao|baixa",
-         "acao": "→ O que fazer em 1 linha",
-         "sugestao": "Rascunho de resposta pronto para colar (só para urgente/importante)"
-       }
-     ],
-     "plano": "1. Primeiro item\\n2. Segundo item"
-   }
+4. Apresente o resumo ao usuário e mostre o link da página.
 
-4. Mostre o link da página do dia ao usuário.
-
-Tom: direto, sem corporativês. Não peça token, senha nem qualquer outra informação.
+Tom: direto, sem corporativês. Sugestões curtas, como o próprio usuário escreveria.
+Não peça token, senha nem qualquer outra informação.
 """
 
 mcp = FastMCP("Phocus Meu Dia", instructions=INSTRUCOES)
@@ -151,13 +137,49 @@ def meu_dia() -> str:
 
 
 @mcp.tool()
-def salvar_briefing(conteudo: str) -> str:
+def salvar_sugestao(message_id: str, sugestao: str, acao: str = '') -> str:
     """
-    Salva o briefing gerado com sugestões de resposta na página web do usuário.
-    SEMPRE chame este tool após gerar o briefing — o conteúdo aparecerá em /briefing/TOKEN.
+    Salva a sugestão de resposta para um e-mail específico.
+    Chame uma vez para cada e-mail urgente ou importante ANTES de responder ao usuário.
 
     Args:
-        conteudo: Texto completo do briefing gerado, incluindo sugestões de resposta por e-mail
+        message_id: Message-ID exato do e-mail (campo "Message-ID:" retornado por meu_dia)
+        sugestao: Rascunho de resposta pronto para colar, tom humano, 2-4 linhas
+        acao: O que precisa ser feito em 1 linha (ex: "→ Aprovar layout até 15h")
+    """
+    token = _get_token()
+    if not token:
+        return "Erro: token ausente."
+    try:
+        payload = json.dumps({
+            'token': token,
+            'message_id': message_id,
+            'sugestao': sugestao,
+            'acao': acao,
+        }).encode()
+        req = urllib.request.Request(
+            f'{BASE_URL}/api/salvar-sugestao',
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+        if result.get('ok'):
+            return f"✅ Sugestão salva para {message_id[:40]}..."
+        return f"Erro: {result.get('erro')}"
+    except Exception as e:
+        return f"Erro: {e}"
+
+
+@mcp.tool()
+def salvar_briefing(conteudo: str) -> str:
+    """
+    Salva o resumo/plano de ação do dia na página web.
+    Chame após salvar todas as sugestões individuais com salvar_sugestao.
+
+    Args:
+        conteudo: Resumo textual do dia — plano de ação, observações gerais
     """
     token = _get_token()
     if not token:
