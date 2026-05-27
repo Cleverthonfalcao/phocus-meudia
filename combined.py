@@ -25,28 +25,6 @@ from mcp_server import mcp, mcp_token_ctx
 
 mcp_asgi = mcp.http_app(transport='sse')
 
-# Cache em memória (velocidade) + persistência no banco (sobrevive a deploys)
-_token_by_ip: dict[str, tuple[str, float]] = {}
-
-def _set_token(ip: str, token: str):
-    _token_by_ip[ip] = (token, time.time())
-    try:
-        save_ip_token(ip, token)
-    except Exception:
-        pass
-
-def _get_ip_token(ip: str) -> str:
-    entry = _token_by_ip.get(ip)
-    if entry:
-        token, ts = entry
-        if time.time() - ts < 86400:
-            return token
-    try:
-        return get_token_by_ip(ip)
-    except Exception:
-        return ''
-
-
 _starlette = Starlette(routes=[
     Mount('/mcp',      app=mcp_asgi),
     Mount('/messages', app=mcp_asgi),
@@ -55,6 +33,18 @@ _starlette = Starlette(routes=[
 
 
 class TokenMiddleware:
+    """
+    Garante que cada requisição carregue o token correto do usuário.
+
+    Estratégia segura:
+    1. SSE /mcp/TOKEN/sse  → token fica na URL, reescrevemos o endpoint
+       que o FastMCP envia ao cliente para /mcp/TOKEN/messages/...
+       Assim TODAS as tool calls subsequentes carregam o token na URL.
+    2. Tool calls /mcp/TOKEN/messages/... → token extraído da URL (seguro).
+    3. Fallback /messages/... sem token → bloqueado (retorna 401).
+       Nunca usamos IP para inferir token — elimina vazamento entre usuários.
+    """
+
     def __init__(self, app):
         self.app = app
 
@@ -63,41 +53,64 @@ class TokenMiddleware:
             await self.app(scope, receive, send)
             return
 
-        path   = scope.get('path', '')
-        client = scope.get('client') or ('', 0)
-        ip     = client[0]
+        path = scope.get('path', '')
 
-        # ── 1. /mcp/TOKEN/sse ────────────────────────────────────────────────────
+        # ── 1. /mcp/TOKEN/sse — reescreve endpoint no corpo da resposta SSE ──────
         m = re.match(r'^/mcp/([^/]+)/sse', path)
         if m:
             token = m.group(1)
-            # Registra token por IP — válido por 2 horas
-            _set_token(ip, token)
-            print(f'[MW] SSE ip={ip!r} token={token!r}', flush=True)
+            mcp_token_ctx.set(token)
+            # Persiste para o _get_token() dos tools
+            try:
+                save_ip_token(scope.get('client', ('', 0))[0], token)
+            except Exception:
+                pass
+            print(f'[MW] SSE token={token!r}', flush=True)
+
+            # Reescreve a URL de endpoint que FastMCP manda ao cliente via SSE:
+            # "data: /messages/SESSION" → "data: /mcp/TOKEN/messages/SESSION"
             scope = {**scope, 'path': '/mcp/sse', 'raw_path': b'/mcp/sse'}
-            await self.app(scope, receive, send)
+
+            token_bytes = token.encode()
+
+            async def send_rewrite(message):
+                if message.get('type') == 'http.response.body':
+                    body = message.get('body', b'')
+                    # Reescreve endpoint para incluir token
+                    body = body.replace(
+                        b'data: /messages/',
+                        b'data: /mcp/' + token_bytes + b'/messages/'
+                    )
+                    body = body.replace(
+                        b'data: /mcp/messages/',
+                        b'data: /mcp/' + token_bytes + b'/messages/'
+                    )
+                    message = {**message, 'body': body}
+                await send(message)
+
+            await self.app(scope, receive, send_rewrite)
             return
 
-        # ── 2. /mcp/TOKEN/messages/... (endpoint reescrito pelo cliente) ─────────
+        # ── 2. /mcp/TOKEN/messages/... — token extraído da URL (caminho seguro) ──
         m = re.match(r'^/mcp/([^/]+)/(messages.*)', path)
         if m:
             token    = m.group(1)
             new_path = '/mcp/' + m.group(2)
             mcp_token_ctx.set(token)
-            print(f'[MW] msg-url ip={ip!r} token={token!r}', flush=True)
+            print(f'[MW] tool token={token!r}', flush=True)
             scope = {**scope, 'path': new_path, 'raw_path': new_path.encode()}
             await self.app(scope, receive, send)
             return
 
-        # ── 3. /messages/... ou /mcp/messages/... — injeta token pelo IP ─────────
+        # ── 3. /messages/... sem token na URL — BLOQUEADO por segurança ──────────
+        # Nunca inferimos token por IP: evita que um usuário veja dados de outro.
         if re.match(r'^(?:/mcp)?/messages/', path):
-            token = _get_ip_token(ip)
-            if token:
-                mcp_token_ctx.set(token)
-                print(f'[MW] msg-ip ip={ip!r} token={token!r}', flush=True)
-            else:
-                print(f'[MW] msg-ip NOT FOUND ip={ip!r}', flush=True)
-            await self.app(scope, receive, send)
+            print(f'[MW] BLOQUEADO path sem token: {path!r}', flush=True)
+            async def send_401(send):
+                await send({'type': 'http.response.start', 'status': 401,
+                            'headers': [[b'content-type', b'text/plain']]})
+                await send({'type': 'http.response.body', 'body': b'Token required', 'more_body': False})
+            await send_401(send)
             return
 
         await self.app(scope, receive, send)
