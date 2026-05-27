@@ -146,116 +146,6 @@ def get_token_by_ip(ip: str) -> str:
 
 
 
-# ── Geração automática de sugestões via API do Claude ─────────────────────────
-
-def gerar_sugestoes_auto(token: str, emails: list):
-    """
-    Chama a API do Claude para gerar sugestões de resposta
-    para e-mails urgentes/importantes. Roda em background thread.
-    """
-    import threading
-
-    def _gerar():
-        try:
-            import urllib.request as urlreq
-            urgentes = [e for e in emails if e['prioridade'] in ('urgente', 'importante')]
-            if not urgentes:
-                return
-
-            api_key = os.environ.get('ANTHROPIC_API_KEY', '')
-            if not api_key:
-                return
-
-            # Monta prompt
-            blocos = []
-            for i, e in enumerate(urgentes):
-                blocos.append(
-                    f"E-mail {i+1}\n"
-                    f"De: {e['remetente']}\n"
-                    f"Assunto: {e['assunto']}\n"
-                    f"Corpo: {(e.get('corpo') or '')[:300]}\n"
-                    f"Message-ID: {e['message_id']}"
-                )
-            prompt = (
-                "Você é o assistente da Phocus Propaganda. "
-                "Para cada e-mail abaixo gere uma acao (1 linha, começando com →) "
-                "e uma sugestao de resposta pronta (2-4 linhas, tom direto e humano).\n"
-                "Responda SOMENTE com JSON válido, sem markdown, neste formato exato:\n"
-                '{"sugestoes":[{"message_id":"...","acao":"...","sugestao":"..."}]}\n\n'
-                + "\n\n".join(blocos)
-            )
-
-            payload = {
-                "model": "claude-sonnet-4-20250514",
-                "max_tokens": 1200,
-                "messages": [{"role": "user", "content": prompt}]
-            }
-            req = urlreq.Request(
-                "https://api.anthropic.com/v1/messages",
-                data=json.dumps(payload).encode(),
-                headers={
-                    "Content-Type": "application/json",
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                },
-                method="POST"
-            )
-            with urlreq.urlopen(req, timeout=30) as resp:
-                resp_data = json.loads(resp.read())
-
-            text = resp_data["content"][0]["text"].strip()
-            # Remove markdown fences se existirem
-            if text.startswith("```"):
-                text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-            parsed = json.loads(text)
-
-            # Merge no JSON de briefing existente
-            existente = get_briefing_ia(token)
-            if existente:
-                try:
-                    base = json.loads(existente[0])
-                except Exception:
-                    base = {"emails": [], "plano": ""}
-            else:
-                base = {
-                    "emails": [
-                        {"message_id": e['message_id'], "remetente": e['remetente'],
-                         "assunto": e['assunto'], "prioridade": e['prioridade'],
-                         "acao": "", "sugestao": ""}
-                        for e in emails
-                    ],
-                    "plano": ""
-                }
-
-            sug_map = {s['message_id']: s for s in parsed.get('sugestoes', [])}
-            for entry in base.get('emails', []):
-                mid = entry.get('message_id', '')
-                if mid in sug_map:
-                    entry['sugestao'] = sug_map[mid].get('sugestao', '')
-                    entry['acao'] = sug_map[mid].get('acao', '')
-
-            salvar_briefing_ia(token, json.dumps(base, ensure_ascii=False))
-
-        except Exception as err:
-            print(f'[SUGESTOES] ERRO: {err}', flush=True)
-            # Salva o erro no briefing para exibir na página
-            try:
-                existente2 = get_briefing_ia(token)
-                if existente2:
-                    base2 = json.loads(existente2[0])
-                    base2['erro_sugestao'] = str(err)
-                    salvar_briefing_ia(token, json.dumps(base2, ensure_ascii=False))
-            except Exception:
-                pass
-
-    threading.Thread(target=_gerar, daemon=True).start()
-
-
-def sugestoes_ja_geradas(token: str, emails: list) -> bool:
-    """Retorna True se ja existem sugestoes para os e-mails urgentes/importantes atuais."""
-    existente = get_briefing_ia(token)
-    if not existente:
-        return False
     try:
         base = json.loads(existente[0])
         urgentes_ids = {e['message_id'] for e in emails if e['prioridade'] in ('urgente', 'importante')}
@@ -537,21 +427,6 @@ def meu_dia():
     emails, erros, empresa = ler_emails(
         session['email'], session['senha'], horas=18
     )
-    token_meudia = session.get('token', '')
-    if emails and token_meudia and not sugestoes_ja_geradas(token_meudia, emails):
-        existente_md = get_briefing_ia(token_meudia)
-        if not existente_md:
-            base_md = json.dumps({
-                "emails": [
-                    {"message_id": e['message_id'], "remetente": e['remetente'],
-                     "assunto": e['assunto'], "prioridade": e['prioridade'],
-                     "acao": "", "sugestao": ""}
-                    for e in emails
-                ],
-                "plano": ""
-            }, ensure_ascii=False)
-            salvar_briefing_ia(token_meudia, base_md)
-        gerar_sugestoes_auto(token_meudia, emails)
     contadores = {
         'urgente':    sum(1 for e in emails if e['prioridade'] == 'urgente'),
         'importante': sum(1 for e in emails if e['prioridade'] == 'importante'),
@@ -823,23 +698,6 @@ def briefing(token):
 
     usuario, senha, empresa = sessao
     emails, erros, _ = ler_emails(usuario, senha, horas=18)
-
-    # Gera sugestões automaticamente se ainda não existem para os e-mails atuais
-    if emails and not sugestoes_ja_geradas(token, emails):
-        # Garante JSON base antes de gerar sugestões
-        existente = get_briefing_ia(token)
-        if not existente:
-            base_json = json.dumps({
-                "emails": [
-                    {"message_id": e['message_id'], "remetente": e['remetente'],
-                     "assunto": e['assunto'], "prioridade": e['prioridade'],
-                     "acao": "", "sugestao": ""}
-                    for e in emails
-                ],
-                "plano": ""
-            }, ensure_ascii=False)
-            salvar_briefing_ia(token, base_json)
-        gerar_sugestoes_auto(token, emails)
 
     contadores = {
         'urgente':    sum(1 for e in emails if e['prioridade'] == 'urgente'),
@@ -1264,34 +1122,6 @@ def api_registrar_agenda():
 
 
 
-@app.route('/api/test-anthropic')
-def api_test_anthropic():
-    """Testa se a ANTHROPIC_API_KEY está configurada e funcionando."""
-    import urllib.request as urlreq
-    api_key = os.environ.get('ANTHROPIC_API_KEY', '')
-    if not api_key:
-        return jsonify({'ok': False, 'erro': 'ANTHROPIC_API_KEY nao configurada'})
-    try:
-        payload = json.dumps({
-            'model': 'claude-haiku-4-5-20251001',
-            'max_tokens': 10,
-            'messages': [{'role': 'user', 'content': 'ping'}]
-        }).encode()
-        req = urlreq.Request(
-            'https://api.anthropic.com/v1/messages',
-            data=payload,
-            headers={
-                'Content-Type': 'application/json',
-                'x-api-key': api_key,
-                'anthropic-version': '2023-06-01',
-            },
-            method='POST'
-        )
-        with urlreq.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read())
-        return jsonify({'ok': True, 'model': data.get('model','?')})
-    except Exception as e:
-        return jsonify({'ok': False, 'erro': str(e)})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5200))
