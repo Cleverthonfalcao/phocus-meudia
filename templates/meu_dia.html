@@ -608,11 +608,25 @@ async function salvarAgenda() {
       .then(d => {
         if (d.ready) {
           document.getElementById('sug-ready-banner').style.display = 'block';
+          // Substitui todos os spinners por check
+          document.querySelectorAll('.sug-loading').forEach(el => {
+            el.innerHTML = '<span style="color:#45B577;font-size:12px">✓ Sugestões prontas — atualize a página</span>';
+          });
+        } else if (d.erro) {
+          // Mostra erro nos spinners
+          document.querySelectorAll('.sug-loading').forEach(el => {
+            el.innerHTML = '<span style="color:#C0392B;font-size:11px">⚠ Erro ao gerar sugestão. Verifique a ANTHROPIC_API_KEY no Railway.</span>';
+          });
         } else if (++tentativas < maxTentativas) {
           setTimeout(verificarSugestoes, 5000);
+        } else {
+          // Timeout — para de tentar
+          document.querySelectorAll('.sug-loading').forEach(el => {
+            el.innerHTML = '<span style="color:#999;font-size:11px">Sugestão não gerada. Verifique a configuração da API.</span>';
+          });
         }
       })
-      .catch(() => {});
+      .catch(() => { if (++tentativas < maxTentativas) setTimeout(verificarSugestoes, 5000); });
   }
 
   // Só faz polling se não há sugestões visíveis já

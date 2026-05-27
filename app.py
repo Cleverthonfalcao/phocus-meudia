@@ -236,8 +236,17 @@ def gerar_sugestoes_auto(token: str, emails: list):
 
             salvar_briefing_ia(token, json.dumps(base, ensure_ascii=False))
 
-        except Exception:
-            pass  # falha silenciosa — não quebra a página
+        except Exception as err:
+            print(f'[SUGESTOES] ERRO: {err}', flush=True)
+            # Salva o erro no briefing para exibir na página
+            try:
+                existente2 = get_briefing_ia(token)
+                if existente2:
+                    base2 = json.loads(existente2[0])
+                    base2['erro_sugestao'] = str(err)
+                    salvar_briefing_ia(token, json.dumps(base2, ensure_ascii=False))
+            except Exception:
+                pass
 
     threading.Thread(target=_gerar, daemon=True).start()
 
@@ -1224,7 +1233,8 @@ def api_briefing_status():
         data = json.loads(briefing[0])
         has_sug = any(e.get('sugestao') for e in data.get('emails', []))
         agenda  = data.get('agenda', '')
-        return jsonify({'ready': has_sug, 'agenda': agenda})
+        erro    = data.get('erro_sugestao', '')
+        return jsonify({'ready': has_sug, 'agenda': agenda, 'erro': erro})
     except Exception:
         return jsonify({'ready': False})
 
@@ -1252,6 +1262,36 @@ def api_registrar_agenda():
     salvar_briefing_ia(token, json.dumps(base, ensure_ascii=False))
     return jsonify({'ok': True})
 
+
+
+@app.route('/api/test-anthropic')
+def api_test_anthropic():
+    """Testa se a ANTHROPIC_API_KEY está configurada e funcionando."""
+    import urllib.request as urlreq
+    api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+    if not api_key:
+        return jsonify({'ok': False, 'erro': 'ANTHROPIC_API_KEY nao configurada'})
+    try:
+        payload = json.dumps({
+            'model': 'claude-haiku-4-5-20251001',
+            'max_tokens': 10,
+            'messages': [{'role': 'user', 'content': 'ping'}]
+        }).encode()
+        req = urlreq.Request(
+            'https://api.anthropic.com/v1/messages',
+            data=payload,
+            headers={
+                'Content-Type': 'application/json',
+                'x-api-key': api_key,
+                'anthropic-version': '2023-06-01',
+            },
+            method='POST'
+        )
+        with urlreq.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        return jsonify({'ok': True, 'model': data.get('model','?')})
+    except Exception as e:
+        return jsonify({'ok': False, 'erro': str(e)})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5200))
