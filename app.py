@@ -1076,6 +1076,29 @@ def api_salvar_sugestao():
         return jsonify({'ok': False, 'erro': str(ex)})
 
 
+@app.route('/api/briefing/<token>')
+def api_briefing_json(token):
+    """Briefing salvo (e-mails + sugestões + plano) em JSON puro, por token.
+    Usado por sistemas externos (ex: kanban da agenda-secretaria) para importar demandas."""
+    if not get_sessao_por_token(token):
+        resp = jsonify({'ok': False, 'erro': 'token inválido'})
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        return resp, 403
+
+    briefing_ia = get_briefing_ia(token)
+    if not briefing_ia:
+        data = {'emails': [], 'plano': ''}
+    else:
+        try:
+            data = json.loads(briefing_ia[0])
+            if not isinstance(data, dict):
+                data = {'emails': [], 'plano': str(data)}
+        except (json.JSONDecodeError, TypeError):
+            data = {'emails': [], 'plano': briefing_ia[0]}
+
+    resp = jsonify({'ok': True, **data})
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    return resp
 
 
 @app.route('/api/briefing-status')
@@ -1119,8 +1142,6 @@ def api_registrar_agenda():
     base['agenda'] = compromissos
     salvar_briefing_ia(token, json.dumps(base, ensure_ascii=False))
     return jsonify({'ok': True})
-
-
 
 
 if __name__ == '__main__':
